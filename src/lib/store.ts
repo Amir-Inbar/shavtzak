@@ -50,7 +50,7 @@ export function normalize(raw: unknown): State {
   for (const p of s.posts) { p.id = fresh(p.id); const sh = new Set<string>(); for (const x of p.shifts) { while (sh.has(x.id)) x.id = uid(); sh.add(x.id); } }
   for (const p of s.people) p.id = fresh(p.id);
   s.settings.minRest = Math.max(0, num(s.settings.minRest, 6));
-  if (!['system', 'light', 'dark'].includes(s.settings.theme)) s.settings.theme = 'system';
+  delete (s.settings as unknown as Record<string, unknown>).theme;
   const ids = new Set(s.people.map(p => p.id));
   const clean = (a: unknown) => [...new Set(Array.isArray(a) ? a.map(x => str(x)) : [])].filter(id => ids.has(id));
   if (o.cells && typeof o.cells === 'object') {

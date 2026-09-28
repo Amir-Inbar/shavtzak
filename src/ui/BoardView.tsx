@@ -4,7 +4,7 @@ import type { CSSProperties } from 'react';
 import { useAppState } from '../lib/store';
 import { boardDays, daySlots, extrasOn, postColor, slotInfo } from '../lib/slots';
 import type { Evaluation, Person, Post, Slot, State } from '../lib/types';
-import { dm, durShortH, fromKey, hShort, hm, relDay, todayKey, weekday, addDaysKey } from '../lib/time';
+import { dm, durShortH, fromKey, hm, relDay, todayKey, weekday, addDaysKey } from '../lib/time';
 import { Icon } from './icons';
 import { useDrag } from './Dnd';
 import { openSheet } from './uiStore';
@@ -40,7 +40,7 @@ function PostTable({ s, post, days, search, now }: { s: State; post: Post; days:
   const today = todayKey();
   const spans24 = post.shifts.length === 1 && !post.allDay && post.shifts[0].start === post.shifts[0].end;
   const style = { '--pc': postColor(post.color) } as CSSProperties;
-  const sub = post.allDay ? 'כל היום' : post.shifts.map(sh => `\u2066${sh.start.replace(/:00$/, '')}–${sh.end.replace(/:00$/, '')}\u2069`).join(' · ');
+  const sub = post.allDay ? 'כל היום' : post.shifts.map(sh => `\u2066${sh.start}–${sh.end}\u2069`).join(' · ');
   return (
     <section className="ptable" style={style} aria-label={post.name}>
       <header className="pt-head">
@@ -92,7 +92,8 @@ function TimeCell({ sl, s, live }: { sl: Slot; s: State; live: boolean }) {
   const n = inf.people.length;
   return (
     <td className="c-time" onClick={() => openPicker(sl.key)}>
-      <b className="tm" dir="ltr">{hShort(sl.start)}–{hShort(sl.end)}</b>
+      <b className="tm">{hm(sl.start)}</b>
+      <span className="tm t-end">{hm(sl.end)}</span>
       <span className={`fill ${inf.missing ? 'bad' : n ? 'ok' : 'none'}`}>{n}/{sl.need}</span>
       {live ? <span className="live-tag">עכשיו</span> : null}
     </td>
@@ -148,7 +149,7 @@ function ExtrasTable({ s, slots, search, now }: { s: State; slots: Slot[]; searc
             return (
               <tr key={sl.key} className={live ? 'live' : ''}>
                 <th className="c-day" onClick={() => openSheet(() => <ExtraForm id={sl.key} />)} style={{ cursor: 'pointer' }}><b>{sl.name}</b><small>{weekday(sl.date)}</small></th>
-                <td className="c-time" onClick={() => openPicker(sl.key)}><b className="tm" dir="ltr">{hm(sl.start)}–{hm(sl.end)}</b><span className={`fill ${inf.missing ? 'bad' : 'ok'}`}>{inf.people.length}/{sl.need}</span></td>
+                <td className="c-time" onClick={() => openPicker(sl.key)}><b className="tm">{hm(sl.start)}</b><span className="tm t-end">{hm(sl.end)}</span><span className={`fill ${inf.missing ? 'bad' : 'ok'}`}>{inf.people.length}/{sl.need}</span></td>
                 <NamesCell s={s} sl={sl} search={search} />
               </tr>
             );

@@ -3,7 +3,7 @@ import { useState, type CSSProperties } from 'react';
 import { commit, useAppState } from '../../lib/store';
 import { boardDays, personNow, postColor, restBefore, slotsOfPerson } from '../../lib/slots';
 import type { Person } from '../../lib/types';
-import { DAY, HOUR, dur, fromKey, hShort, hm, todayKey, toKey, uid, weekday, whenShort, relDay } from '../../lib/time';
+import { DAY, HOUR, dur, fromKey, hm, todayKey, toKey, uid, weekday, whenShort, relDay } from '../../lib/time';
 import { Icon } from '../icons';
 import { Field, Sheet } from '../primitives';
 import { closeSheet, confirmDialog, toast } from '../uiStore';
@@ -33,7 +33,7 @@ export function SoldierSheet({ id }: { id: string | null }) {
       const hits = slotsOfPerson(s, existing.id).filter(sl => d.unavail.some(x => x.start < sl.end && x.end > sl.start));
       if (hits.length && await confirmDialog({
         title: `${name} משובץ בזמן שהוא לא זמין`,
-        items: hits.map(sl => ({ lv: 'bad', text: `${sl.name} · ${weekday(sl.date)} ${sl.allDay ? '' : `${hShort(sl.start)}–${hShort(sl.end)}`}` })),
+        items: hits.map(sl => ({ lv: 'bad', text: `${sl.name} · ${weekday(sl.date)} ${sl.allDay ? '' : `${hm(sl.start)}–${hm(sl.end)}`}` })),
         ok: 'הסר אותו מהמשמרות האלו', cancel: 'השאר – יסומן באדום',
       })) drop = hits.map(x => x.key);
     }
@@ -90,7 +90,7 @@ export function SoldierSheet({ id }: { id: string | null }) {
                   <div className="si" style={{ '--pc': postColor(sl.color) } as CSSProperties}>
                     <i className="pdot" />
                     <span className="si-day">{weekday(sl.date)}{relDay(sl.date) ? <small>{relDay(sl.date)}</small> : null}</span>
-                    <span className="tm" dir="ltr">{sl.allDay ? '' : `${hShort(sl.start)}–${hShort(sl.end)}`}</span>
+                    <span className="tm" dir="ltr">{sl.allDay ? '' : `${hm(sl.start)}–${hm(sl.end)}`}</span>
                     <b className="grow">{sl.name}</b>
                   </div>
                 </li>

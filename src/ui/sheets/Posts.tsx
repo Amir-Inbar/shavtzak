@@ -44,7 +44,7 @@ export function PostsEditor({ focus }: { focus?: string }) {
           <div key={p.id} className={`post-ed${isOpen ? ' open' : ''}`} style={{ '--pc': POST_COLORS[p.color % POST_COLORS.length] } as CSSProperties}>
             <button className="pe-head" onClick={() => setOpen(isOpen ? null : p.id)} aria-expanded={isOpen}>
               <i className="pdot" /><b className="grow">{p.name || 'עמדה חדשה'}</b>
-              <span className="muted tm">{p.allDay ? 'כל היום' : p.shifts.map(sh => `\u2066${sh.start.replace(/:00$/, '')}–${sh.end.replace(/:00$/, '')}\u2069`).join(' · ')}</span>
+              <span className="muted tm">{p.allDay ? 'כל היום' : p.shifts.map(sh => `\u2066${sh.start}–${sh.end}\u2069`).join(' · ')}</span>
               <Icon n={isOpen ? 'up' : 'down'} size={18} />
             </button>
             {isOpen ? (

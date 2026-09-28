@@ -1,7 +1,7 @@
 // Renders the board as clean PNG tables for WhatsApp, plus a plain-text version.
 import type { Slot, State } from './types';
 import { boardDays, daySlots, extrasOn, postColor, slotsOfPerson } from './slots';
-import { dm, fromKey, hShort, hm, hours, weekday, ltr, addDaysKey, type DateKey } from './time';
+import { dm, fromKey, hm, hours, weekday, ltr, addDaysKey, type DateKey } from './time';
 
 export type ShareMode = 'table' | 'people';
 export interface ShareOptions { mode: ShareMode; days: DateKey[]; postIds: string[]; notes: boolean }
@@ -31,7 +31,7 @@ function wrap(cx: Ctx, words: string[], sep: string, max: number, font: string):
   if (cur) out.push(cur);
   return out.length ? out : [''];
 }
-const shiftLabel = (sl: Slot) => sl.allDay ? '' : `${hShort(sl.start)}–${hShort(sl.end)}`;
+const shiftLabel = (sl: Slot) => sl.allDay ? '' : `${hm(sl.start)}–${hm(sl.end)}`;
 
 /* ---------- blocks: each block is an unbreakable piece of a page ---------- */
 /** keep: never end a page right after this block (headers). spacer: dropped at page edges. */
@@ -42,7 +42,7 @@ function tableBlocks(cx: Ctx, s: State, o: ShareOptions, W: number): Block[] {
   const posts = s.posts.filter(p => o.postIds.includes(p.id));
   const X0 = P, X1 = W - P;
   const F_NAMES = `500 30px ${FUI}`, F_TIME = `600 30px ${FN}`, F_DAY = `700 30px ${FUI}`;
-  const colTime = 170;
+  const colTime = 240;
   for (const post of posts) {
     const allDay = post.allDay;
     const spans24 = post.shifts.length === 1 && !allDay && post.shifts[0].start === post.shifts[0].end;
@@ -53,7 +53,7 @@ function tableBlocks(cx: Ctx, s: State, o: ShareOptions, W: number): Block[] {
       h: 76, keep: true, draw(cx, y) {
         rr(cx, X1 - 26, y + 28, 22, 22, 6); cx.fillStyle = postColor(post.color); cx.fill();
         text(cx, post.name, X1 - 38, y + 50, `700 36px ${FN}`, C.ink);
-        const sub = allDay ? 'כל היום' : post.shifts.map(sh => `${sh.start.replace(/:00$/, '')}–${sh.end.replace(/:00$/, '')}`).join(' · ');
+        const sub = allDay ? 'כל היום' : post.shifts.map(sh => `${sh.start}–${sh.end}`).join(' · ');
         text(cx, ltr(sub), X0, y + 50, `500 26px ${FN}`, C.ink3, 'left', 'ltr');
       },
     });
@@ -162,10 +162,10 @@ function peopleBlocks(_cx: Ctx, s: State, o: ShareOptions, W: number): Block[] {
           const xm = X1 - colName - colW * di - colW / 2;
           list.forEach((sl, j) => {
             const yy = y + 22 + j * (showPost ? 58 : 38);
-            const label = sl.allDay ? sl.name : `${hShort(sl.start)}–${hShort(sl.end)}`;
-            cx.font = `600 27px ${FN}`; const tw = cx.measureText(label).width;
+            const label = sl.allDay ? sl.name : `${hm(sl.start)}–${hm(sl.end)}`;
+            cx.font = `600 24px ${FN}`; const tw = cx.measureText(label).width;
             rr(cx, xm - tw / 2 - 12, yy, tw + 24, 36, 9); cx.fillStyle = postColor(sl.color) + '22'; cx.fill();
-            text(cx, label, xm, yy + 27, `600 27px ${FN}`, C.ink, 'center', sl.allDay ? 'rtl' : 'ltr');
+            text(cx, label, xm, yy + 26, `600 24px ${FN}`, C.ink, 'center', sl.allDay ? 'rtl' : 'ltr');
             if (showPost && !sl.allDay) text(cx, sl.name, xm, yy + 55, `500 18px ${FUI}`, postColor(sl.color), 'center');
           });
         });
@@ -184,7 +184,7 @@ export interface Meta { v: number; at: number }
 
 export async function buildImages(s: State, o: ShareOptions, meta: Meta): Promise<{ files: File[]; urls: string[] }> {
   await fonts();
-  const W = o.mode === 'people' ? Math.max(1080, 2 * P + 210 + 110 + o.days.length * 170) : 1080;
+  const W = o.mode === 'people' ? Math.max(1080, 2 * P + 210 + 110 + o.days.length * 200) : 1080;
   const cv = document.createElement('canvas'); const cx = cv.getContext('2d')!;
   const blocks = o.mode === 'people' ? peopleBlocks(cx, s, o, W) : tableBlocks(cx, s, o, W);
   const HEAD1 = 190, HEADN = 120, FOOT = 80, MAX = Math.round(W * 2.2);
@@ -253,7 +253,7 @@ export function shareText(s: State, o: ShareOptions, meta: Meta): string {
     for (const p of [...s.people].sort((a, b) => a.name.localeCompare(b.name, 'he'))) {
       const mine = slotsOfPerson(s, p.id).filter(sl => o.days.includes(sl.date) && (!sl.postId || posts.has(sl.postId)));
       if (!mine.length) continue;
-      out += `\n*${p.name}*: ${mine.map(sl => `${weekday(sl.date)} ${sl.name}${sl.allDay ? '' : ' ' + ltr(`${hShort(sl.start)}–${hShort(sl.end)}`)}`).join(' · ')}`;
+      out += `\n*${p.name}*: ${mine.map(sl => `${weekday(sl.date)} ${sl.name}${sl.allDay ? '' : ' ' + ltr(`${hm(sl.start)}–${hm(sl.end)}`)}`).join(' · ')}`;
     }
     out += '\n';
   } else {
@@ -261,7 +261,7 @@ export function shareText(s: State, o: ShareOptions, meta: Meta): string {
       out += `\n*${weekday(d)} ${dm(fromKey(d))}*\n`;
       for (const post of s.posts.filter(p => o.postIds.includes(p.id))) {
         for (const sl of daySlots(s, d, post)) {
-          out += `${post.name}${sl.allDay ? '' : ' ' + ltr(`${hShort(sl.start)}–${hShort(sl.end)}`)}: ${sl.assigned.map(name).filter(Boolean).join(', ') || '—'}\n`;
+          out += `${post.name}${sl.allDay ? '' : ' ' + ltr(`${hm(sl.start)}–${hm(sl.end)}`)}: ${sl.assigned.map(name).filter(Boolean).join(', ') || '—'}\n`;
         }
       }
       for (const sl of extrasOn(s, d)) out += `${sl.name} ${ltr(`${hm(sl.start)}–${hm(sl.end)}`)}: ${sl.assigned.map(name).join(', ') || '—'}\n`;

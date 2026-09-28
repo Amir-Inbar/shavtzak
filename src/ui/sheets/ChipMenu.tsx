@@ -2,7 +2,7 @@
 import { useAppState } from '../../lib/store';
 import { boardSlots, evaluate, personOf, postColor, slotOf } from '../../lib/slots';
 import type { Slot } from '../../lib/types';
-import { dur, hShort, weekday } from '../../lib/time';
+import { dur, weekday, hm } from '../../lib/time';
 import { Icon } from '../icons';
 import { MenuItem, Sheet } from '../primitives';
 import { moveGroup, removeFrom, swapPeople, slotLabel } from '../actions';
@@ -51,7 +51,7 @@ function Targets({ mode, slotKey, pid }: { mode: 'move' | 'swap'; slotKey: strin
               return (
                 <button key={t.key} className={`trow v-${st}`} disabled={st === 'block'} onClick={async () => { if (await moveGroup([{ key: slotKey, pid }], t.key)) done(); }}>
                   <span className="pdot" style={{ background: postColor(t.color) }} />
-                  <span className="grow"><b>{t.name}</b> {t.allDay ? null : <span className="tm" dir="ltr">{hShort(t.start)}–{hShort(t.end)}</span>}
+                  <span className="grow"><b>{t.name}</b> {t.allDay ? null : <span className="tm" dir="ltr">{hm(t.start)}–{hm(t.end)}</span>}
                     <small>{t.assigned.length}/{t.need} · {ev ? (ev.status === 'ok' ? (ev.restBefore != null ? `נח ${dur(ev.restBefore)}` : 'אפשר') : ev.reasons[0]) : 'כבר שם'}</small></span>
                   <Icon n="chevL" />
                 </button>
@@ -65,7 +65,7 @@ function Targets({ mode, slotKey, pid }: { mode: 'move' | 'swap'; slotKey: strin
               const why = st === 'ok' ? 'אפשר' : [a.status !== 'ok' ? `${p.name}: ${a.reasons[0]}` : '', b.status !== 'ok' ? `${o.name}: ${b.reasons[0]}` : ''].filter(Boolean).join(' · ');
               return (
                 <button key={t.key + oid} className={`trow v-${st}`} disabled={st === 'block'} onClick={async () => { if (await swapPeople({ key: slotKey, pid }, { key: t.key, pid: oid })) done(); }}>
-                  <span className="grow"><b>{o.name}</b> · {t.name} {t.allDay ? null : <span className="tm" dir="ltr">{hShort(t.start)}–{hShort(t.end)}</span>}<small>{why}</small></span>
+                  <span className="grow"><b>{o.name}</b> · {t.name} {t.allDay ? null : <span className="tm" dir="ltr">{hm(t.start)}–{hm(t.end)}</span>}<small>{why}</small></span>
                   <Icon n="swap" />
                 </button>
               );

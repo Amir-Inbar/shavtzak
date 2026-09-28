@@ -1,8 +1,8 @@
 // Choose who goes into a shift. Everyone is sorted by whether they can take it, with their rest shown big.
 import { useState } from 'react';
-import { useAppState } from '../../lib/store';
+import { getState, useAppState } from '../../lib/store';
 import { slotOf } from '../../lib/slots';
-import { HOUR, dur, hShort, weekday, dm, fromKey } from '../../lib/time';
+import { HOUR, dur, weekday, dm, fromKey, hm } from '../../lib/time';
 import { Icon } from '../icons';
 import { Sheet } from '../primitives';
 import { applyPick, pickerGroups, removeFrom, autoFill, type Candidate } from '../actions';
@@ -11,7 +11,12 @@ import { closeSheet } from '../uiStore';
 export function Picker({ slotKey }: { slotKey: string }) {
   const s = useAppState();
   const sl = slotOf(s, slotKey);
-  const [sel, setSel] = useState<string[]>([]);
+  // the recommended soldiers start checked, so filling a shift is one tap
+  const [sel, setSel] = useState<string[]>(() => {
+    const s0 = getState(); const sl0 = slotOf(s0, slotKey);
+    if (!sl0) return [];
+    return pickerGroups(s0, sl0).ok.slice(0, Math.max(0, sl0.need - sl0.assigned.length)).map(c => c.p.id);
+  });
   const [q, setQ] = useState('');
   if (!sl) return <Sheet title="המשמרת לא נמצאה"><p className="hint">ייתכן שהיא נמחקה.</p></Sheet>;
   const g = pickerGroups(s, sl);
@@ -35,11 +40,11 @@ export function Picker({ slotKey }: { slotKey: string }) {
     const on = chosen.includes(c.p.id);
     const e = kind === 'move' && c.e2 ? c.e2 : c.e;
     let why = '';
-    if (kind === 'ok') why = e.prev ? `אחרי ${e.prev.name} ${weekday(e.prev.date)} ${hShort(e.prev.start)}–${hShort(e.prev.end)}` : 'אין משמרת לפני';
+    if (kind === 'ok') why = e.prev ? `אחרי ${e.prev.name} ${weekday(e.prev.date)} ${hm(e.prev.start)}–${hm(e.prev.end)}` : 'אין משמרת לפני';
     else if (kind === 'warn') why = e.reasons.join(' · ');
     else if (kind === 'move' && c.from) {
       const m = Math.max(0, c.from.need - (c.from.assigned.length - 1));
-      why = `עכשיו ב${c.from.name} ${hShort(c.from.start)}–${hShort(c.from.end)} · שם ${m ? (m === 1 ? 'יחסר אחד' : `יחסרו ${m}`) : 'עדיין מאויש'}`;
+      why = `עכשיו ב${c.from.name} ${hm(c.from.start)}–${hm(c.from.end)} · שם ${m ? (m === 1 ? 'יחסר אחד' : `יחסרו ${m}`) : 'עדיין מאויש'}`;
     } else why = c.e.reasons[0];
     const rest = e.restBefore;
     return (
@@ -65,13 +70,13 @@ export function Picker({ slotKey }: { slotKey: string }) {
   const grp = (k: 'ok' | 'warn' | 'move' | 'out', label: string, arr: Candidate[]) =>
     arr.length ? (<><h4 className={`grp g-${k}`}><i />{label}<span className="n">{arr.length}</span></h4>{arr.map((c, i) => row(c, k, i))}</>) : null;
 
-  const title = `${sl.name}${sl.allDay ? '' : ` ${hShort(sl.start)}–${hShort(sl.end)}`}`;
+  const title = `${sl.name}${sl.allDay ? '' : ` ${hm(sl.start)}–${hm(sl.end)}`}`;
   return (
     <Sheet
-      title={<>שיבוץ: {sl.name} {sl.allDay ? null : <span className="tm" dir="ltr">{hShort(sl.start)}–{hShort(sl.end)}</span>}</>}
+      title={<>שיבוץ: {sl.name} {sl.allDay ? null : <span className="tm" dir="ltr">{hm(sl.start)}–{hm(sl.end)}</span>}</>}
       sub={<>{weekday(sl.date)} {dm(fromKey(sl.date))} · {sl.assigned.length}/{sl.need}{missing ? <b className="bad-t"> · {missing === 1 ? 'חסר אחד' : `חסרים ${missing}`}</b> : null}{sl.qual ? ` · נדרש ${sl.qual}` : ''}</>}
       footer={<>
-        <button className="btn" onClick={recommend} disabled={!(missing > chosen.length && g.ok.length)}><Icon n="sparkle" /> בחר מומלצים</button>
+        {chosen.length ? <button className="btn" onClick={() => setSel([])}>נקה בחירה</button> : <button className="btn" onClick={recommend} disabled={!(missing && g.ok.length)}><Icon n="sparkle" /> בחר מומלצים</button>}
         <button className="btn btn-primary" disabled={!chosen.length} onClick={async () => { if (await applyPick(sl.key, chosen)) closeSheet(); }}>{chosen.length ? `שבץ ${chosen.length}` : 'בחרו חיילים'}</button>
       </>}
     >

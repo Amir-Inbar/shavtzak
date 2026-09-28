@@ -24,8 +24,6 @@ export const WD = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמיש
 export const WD_SHORT = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 
 export function hm(t: number): string { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
-/** "13" for 13:00, "13:30" otherwise – the compact style of a paper roster */
-export function hShort(t: number): string { const d = new Date(t); return d.getMinutes() ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : pad(d.getHours()); }
 export function dm(t: number): string { const d = new Date(t); return `${d.getDate()}.${d.getMonth() + 1}`; }
 export function weekday(k: DateKey): string { return WD[new Date(fromKey(k)).getDay()]; }
 export function dayName(k: DateKey): string { return `${weekday(k)} ${dm(fromKey(k))}`; }
@@ -46,7 +44,8 @@ export const hours = (ms: number) => String(Math.round((ms / HOUR) * 10) / 10);
 
 /** left-to-right isolate, so "05–13" never flips inside Hebrew text */
 export const ltr = (s: string) => `⁦${s}⁩`;
-export const range = (a: number, b: number) => ltr(`${hShort(a)}–${hShort(b)}`);
+/** word joiners keep "05:00–13:00" on one line */
+export const range = (a: number, b: number) => ltr(`${hm(a)}\u2060–\u2060${hm(b)}`);
 
 export function parseHM(s: string): number { const [h, m] = s.split(':').map(Number); return (h || 0) * 60 + (m || 0); }
 

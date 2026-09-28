@@ -49,12 +49,9 @@ export interface Extra {
   assigned: string[];
 }
 
-export type Theme = 'system' | 'light' | 'dark';
-
 export interface Settings {
   title: string;
   minRest: number; // hours
-  theme: Theme;
   handedTo: { name: string; at: number } | null;
   receivedFrom: { name: string; at: number } | null;
 }

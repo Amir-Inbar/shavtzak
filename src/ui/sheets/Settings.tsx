@@ -3,9 +3,8 @@ import { useRef, useState } from 'react';
 import { commit, defaults, normalize, useAppState } from '../../lib/store';
 import { sampleState } from '../../lib/sample';
 import { hm, toKey, whenShort } from '../../lib/time';
-import type { Theme } from '../../lib/types';
 import { Icon } from '../icons';
-import { Field, Seg, Sheet, Stepper } from '../primitives';
+import { Field, Sheet, Stepper } from '../primitives';
 import { closeAllSheets, confirmDialog, openSheet, toast } from '../uiStore';
 import { downloadFile, canShareFiles, copyText } from '../io';
 
@@ -33,9 +32,6 @@ export function SettingsSheet() {
       <Field label="שם הלוח (מופיע בתמונה)"><input className="inp" value={title} onChange={e => setTitle(e.target.value)} onBlur={() => title.trim() && title !== s.settings.title && setSetting(st => { st.title = title.trim(); })} /></Field>
       <div className="fld"><span className="fld-l">מנוחה מינימלית בין משמרות</span>
         <div className="row"><Stepper label="שעות מנוחה" value={s.settings.minRest} min={0} max={24} step={0.5} onChange={v => setSetting(st => { st.minRest = v; })} /><span className="muted">שעות · פחות מזה מסומן בצהוב. 0 מבטל.</span></div>
-      </div>
-      <div className="fld"><span className="fld-l">תצוגה</span>
-        <Seg full value={s.settings.theme} onChange={(v: Theme) => setSetting(st => { st.theme = v; })} options={[['system', 'לפי המכשיר'], ['light', 'בהיר'], ['dark', 'כהה']]} />
       </div>
 
       <div className="card">
@@ -73,8 +69,8 @@ export function SettingsSheet() {
       </div>
 
       <div className="row" style={{ marginTop: 18 }}>
-        <button className="btn btn-sm" onClick={async () => { if (await confirmDialog({ title: 'לטעון נתוני דוגמה?', text: 'הלוח הנוכחי יוחלף. אפשר לבטל מיד אחרי.', ok: 'טען', danger: true })) { commit(d => { const th = d.settings.theme; Object.assign(d, sampleState()); d.settings.theme = th; }); closeAllSheets(); toast('נטענו נתוני דוגמה', { undo: true }); } }}>נתוני דוגמה</button>
-        <button className="btn btn-sm danger-t" onClick={async () => { if (await confirmDialog({ title: 'למחוק את כל הנתונים?', text: 'כל החיילים, העמדות והשיבוצים יימחקו מהמכשיר. כדאי לשמור גיבוי קודם.', ok: 'מחק הכל', danger: true })) { commit(d => { const th = d.settings.theme; Object.assign(d, defaults()); d.settings.theme = th; }); closeAllSheets(); toast('כל הנתונים נמחקו', { undo: true }); } }}><Icon n="trash" size={18} /> מחק הכל</button>
+        <button className="btn btn-sm" onClick={async () => { if (await confirmDialog({ title: 'לטעון נתוני דוגמה?', text: 'הלוח הנוכחי יוחלף. אפשר לבטל מיד אחרי.', ok: 'טען', danger: true })) { commit(d => { Object.assign(d, sampleState()); }); closeAllSheets(); toast('נטענו נתוני דוגמה', { undo: true }); } }}>נתוני דוגמה</button>
+        <button className="btn btn-sm danger-t" onClick={async () => { if (await confirmDialog({ title: 'למחוק את כל הנתונים?', text: 'כל החיילים, העמדות והשיבוצים יימחקו מהמכשיר. כדאי לשמור גיבוי קודם.', ok: 'מחק הכל', danger: true })) { commit(d => { Object.assign(d, defaults()); }); closeAllSheets(); toast('כל הנתונים נמחקו', { undo: true }); } }}><Icon n="trash" size={18} /> מחק הכל</button>
       </div>
     </Sheet>
   );
@@ -101,10 +97,9 @@ export async function importText(txt: string) {
   });
   if (!ok) return;
   commit(d => {
-    const theme = d.settings.theme;
     const n = normalize(st);
     Object.assign(d, n);
-    d.sample = false; d.settings.theme = theme; d.settings.handedTo = null;
+    d.sample = false; d.settings.handedTo = null;
     d.settings.receivedFrom = { name: '', at: o.exportedAt ?? Date.now() };
   });
   closeAllSheets();

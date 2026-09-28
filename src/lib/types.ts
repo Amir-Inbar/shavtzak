@@ -8,6 +8,9 @@ export interface ShiftDef {
   need: number;
 }
 
+/** A position inside every shift of a post, e.g. מפקד ×1, נהג ×1, חיילים ×2. Shown as its own column. */
+export interface Role { id: string; name: string; qual: string; count: number }
+
 /** A post / role that repeats every day of the board, e.g. "שמירה", "כוננות", "תורן". */
 export interface Post {
   id: string;
@@ -21,6 +24,12 @@ export interface Post {
   /** tiring – needs the minimum rest before and after */
   rest: boolean;
   qual: string;
+  /** columns inside each shift; empty = one "names" column with the shift's need */
+  roles: Role[];
+  /** shifts that start before this time belong to the night after the date (e.g. 13:00 → a 00:00 shift is the next day) */
+  dayStart: string;
+  /** only people already in this post (and role) at the same time can take it, e.g. a listener from the Carmel team */
+  within: { postId: string; roleId: string | null } | null;
 }
 
 export interface Unavail { id: string; start: number; end: number; reason: string }
@@ -35,7 +44,7 @@ export interface Person {
 }
 
 /** Assignment for one post × day × shift. Stored only once someone touches it. */
-export interface Cell { assigned: string[]; need?: number; note?: string }
+export interface Cell { assigned: string[]; need?: number; note?: string; roleOf?: Record<string, string> }
 
 /** One-off task that isn't part of a post (e.g. a surprise task). */
 export interface Extra {
@@ -86,6 +95,10 @@ export interface Slot {
   allDay: boolean;
   qual: string;
   note: string;
+  roles: Role[];
+  /** person id → role id, for posts with roles */
+  roleOf: Record<string, string>;
+  within: { postId: string; roleId: string | null } | null;
 }
 
 export type Status = 'ok' | 'warn' | 'block';

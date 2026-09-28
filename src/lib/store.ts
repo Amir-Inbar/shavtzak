@@ -31,6 +31,11 @@ export function normalize(raw: unknown): State {
         id: str(x.id) || uid(), start: hmOk(x.start, '08:00'), end: hmOk(x.end, '16:00'), need: Math.max(0, Math.round(num(x.need, 1))),
       })),
       allDay: !!p.allDay, blocks: p.blocks !== false, rest: p.rest !== false, qual: str(p.qual),
+      roles: (Array.isArray(p.roles) ? p.roles : []).filter(Boolean).map((r: any) => ({
+        id: str(r.id) || uid(), name: str(r.name).trim() || 'תפקיד', qual: str(r.qual).trim(), count: Math.max(0, Math.round(num(r.count, 1))),
+      })),
+      dayStart: hmOk(p.dayStart, '00:00'),
+      within: p.within && str(p.within.postId) ? { postId: str(p.within.postId), roleId: p.within.roleId ? str(p.within.roleId) : null } : null,
     })) : [],
     people: Array.isArray(o.people) ? o.people.filter(Boolean).map((p: any): Person => ({
       id: str(p.id) || uid(), name: str(p.name).trim() || 'ללא שם', team: str(p.team),
@@ -59,6 +64,10 @@ export function normalize(raw: unknown): State {
       const cell: Cell = { assigned: clean(c.assigned) };
       if (c.need != null) cell.need = Math.max(0, Math.round(num(c.need)));
       if (c.note) cell.note = str(c.note);
+      if (c.roleOf && typeof c.roleOf === 'object') {
+        cell.roleOf = {};
+        for (const [pid, rid] of Object.entries(c.roleOf)) if (cell.assigned.includes(pid)) cell.roleOf[pid] = str(rid);
+      }
       s.cells[k] = cell;
     }
   }

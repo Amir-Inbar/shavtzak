@@ -1,6 +1,6 @@
 // Renders the board as clean PNG tables for WhatsApp, plus a plain-text version.
 import type { Slot, State } from './types';
-import { boardDays, daySlots, extrasOn, postColor, slotsOfPerson } from './slots';
+import { boardDays, daySlots, extrasOn, peopleInRole, postColor, roleOf, slotsOfPerson } from './slots';
 import { dm, fromKey, hm, hours, weekday, ltr, addDaysKey, type DateKey } from './time';
 
 export type ShareMode = 'table' | 'people';
@@ -49,9 +49,23 @@ function tableGroups(cx: Ctx, s: State, o: ShareOptions, X0: number, X1: number)
     blocks = [];
     groups.push(blocks);
     const allDay = post.allDay;
-    const spans24 = post.shifts.length === 1 && !allDay && post.shifts[0].start === post.shifts[0].end;
+    const spans24 = !allDay && ((post.shifts.length === 1 && post.shifts[0].start === post.shifts[0].end) || post.dayStart !== '00:00');
     const colDay = spans24 ? 250 : 170;
     const namesW = X1 - X0 - colDay - (allDay ? 0 : colTime) - 36;
+    // role columns (מפקד | נהג | חיילים): narrow for single qualified seats, the rest share what's left
+    const roles = post.roles.length > 1 ? post.roles : null;
+    const roleW = roles ? (() => {
+      const total = X1 - X0 - colDay - colTime;
+      // single-seat columns (מפקד, נהג) are as wide as their longest name; the rest share what's left
+      cx.font = F_NAMES; cx.direction = 'rtl';
+      const longest = (r: typeof roles[number]) => Math.max(cx.measureText(r.name).width, ...o.days.flatMap(d => daySlots(s, d, post))
+        .flatMap(sl => peopleInRole(sl, r)).map(pid => cx.measureText(s.people.find(p => p.id === pid)?.name ?? '').width));
+      const fixed = roles.map(r => (r.qual && r.count <= 1 ? Math.min(300, Math.max(130, longest(r) + 40)) : 0));
+      const wide = fixed.filter(w => !w).length;
+      const rest = total - fixed.reduce((t, w) => t + w, 0);
+      return fixed.map(w => w || (wide ? rest / wide : 0));
+    })() : null;
+    const roleX = roleW ? roleW.map((_, i) => X1 - colDay - colTime - roleW.slice(0, i).reduce((t, w) => t + w, 0)) : null;
     // post header
     blocks.push({
       h: 76, draw(cx, y) {
@@ -66,15 +80,23 @@ function tableGroups(cx: Ctx, s: State, o: ShareOptions, X0: number, X1: number)
         cx.fillStyle = C.lineStrong; cx.fillRect(X0, y, X1 - X0, 3);
         text(cx, 'יום', X1 - 16, y + 35, `700 24px ${FUI}`, C.ink2);
         if (!allDay) text(cx, 'שעות', X1 - colDay - 16, y + 35, `700 24px ${FUI}`, C.ink2);
-        text(cx, allDay ? 'שם' : 'שמות', X1 - colDay - (allDay ? 0 : colTime) - 16, y + 35, `700 24px ${FUI}`, C.ink2);
+        if (roles && roleX) roles.forEach((r, i) => text(cx, r.name, roleX[i] - 16, y + 35, `700 24px ${FUI}`, C.ink2));
+        else text(cx, allDay ? 'שם' : 'שמות', X1 - colDay - (allDay ? 0 : colTime) - 16, y + 35, `700 24px ${FUI}`, C.ink2);
       },
     });
     o.days.forEach((date, di) => {
-      const rows = daySlots(s, date, post).map(sl => {
-        const names = sl.assigned.map(id => s.people.find(p => p.id === id)?.name).filter(Boolean) as string[];
+      const nameOf = (id: string) => s.people.find(p => p.id === id)?.name;
+      // a shift turned off for this day (need 0, nobody in it) is left out of the image
+      const rows = daySlots(s, date, post).filter(sl => sl.need || sl.assigned.length).map(sl => {
+        const names = sl.assigned.map(nameOf).filter(Boolean) as string[];
         const lines = wrap(cx, names.length ? names : ['—'], ', ', namesW, F_NAMES);
+        const byRole = roles && roleW ? roles.map((r, i) => {
+          const ns = peopleInRole(sl, r).map(nameOf).filter(Boolean) as string[];
+          return wrap(cx, ns.length ? ns : ['—'], ', ', roleW[i] - 30, F_NAMES);
+        }) : null;
+        const n = byRole ? Math.max(...byRole.map(x => x.length)) : lines.length;
         const note = o.notes && sl.note ? wrap(cx, sl.note.split(/\s+/), ' ', namesW, `400 24px ${FUI}`) : [];
-        return { sl, lines, note, h: 24 + lines.length * 42 + note.length * 32 + 6 };
+        return { sl, lines, byRole, n, note, h: 24 + n * 42 + note.length * 32 + 6 };
       });
       if (!rows.length) return;
       if (rows.length === 1) rows[0].h = Math.max(rows[0].h, 92);
@@ -90,17 +112,19 @@ function tableGroups(cx: Ctx, s: State, o: ShareOptions, X0: number, X1: number)
           let ry = y;
           rows.forEach((r, i) => {
             if (i) { cx.fillStyle = C.line; cx.fillRect(X0, ry, X1 - X0 - colDay, 2); }
-            const base = ry + Math.max(12, (r.h - r.lines.length * 42 - r.note.length * 32) / 2) + 30;
+            const base = ry + Math.max(12, (r.h - r.n * 42 - r.note.length * 32) / 2) + 30;
             if (!allDay) text(cx, ltr(shiftLabel(r.sl)), X1 - colDay - 16, base, F_TIME, C.ink, 'right', 'rtl');
             const nx = X1 - colDay - (allDay ? 0 : colTime) - 16;
-            r.lines.forEach((l, j) => text(cx, l, nx, base + j * 42, F_NAMES, l === '—' ? C.ink3 : C.ink));
-            r.note.forEach((l, j) => text(cx, l, nx, base + r.lines.length * 42 + j * 32 - 4, `400 24px ${FUI}`, C.ink3));
+            if (r.byRole && roleX) r.byRole.forEach((ls, k) => ls.forEach((l, j) => text(cx, l, roleX[k] - 16, base + j * 42, F_NAMES, l === '—' ? C.ink3 : C.ink)));
+            else r.lines.forEach((l, j) => text(cx, l, nx, base + j * 42, F_NAMES, l === '—' ? C.ink3 : C.ink));
+            r.note.forEach((l, j) => text(cx, l, nx, base + r.n * 42 + j * 32 - 4, `400 24px ${FUI}`, C.ink3));
             ry += r.h;
           });
           // column separators + bottom rule
           cx.fillStyle = C.line;
           cx.fillRect(X1 - colDay, y, 2, h);
           if (!allDay) cx.fillRect(X1 - colDay - colTime, y, 2, h);
+          if (roleX) roleX.slice(1).forEach(x => cx.fillRect(x, y, 1, h));
           cx.fillStyle = C.lineStrong; cx.fillRect(X0, y + h - 2, X1 - X0, 2);
         },
       });
@@ -169,7 +193,8 @@ function peopleBlocks(_cx: Ctx, s: State, o: ShareOptions, W: number): Block[] {
             cx.font = `600 24px ${FN}`; const tw = cx.measureText(label).width;
             rr(cx, xm - tw / 2 - 12, yy, tw + 24, 36, 9); cx.fillStyle = postColor(sl.color) + '22'; cx.fill();
             text(cx, label, xm, yy + 26, `600 24px ${FN}`, C.ink, 'center', sl.allDay ? 'rtl' : 'ltr');
-            if (showPost && !sl.allDay) text(cx, sl.name, xm, yy + 55, `500 18px ${FUI}`, postColor(sl.color), 'center');
+            const rn = sl.roles.length > 1 ? roleOf(sl, p.id)?.name : '';
+            if (showPost && !sl.allDay) text(cx, rn && rn !== 'חיילים' ? `${sl.name} · ${rn}` : sl.name, xm, yy + 55, `500 18px ${FUI}`, postColor(sl.color), 'center');
           });
         });
         text(cx, hours(tot), X0 + colTot / 2, y + 22 + 26, `600 26px ${FN}`, C.ink2, 'center', 'ltr');
@@ -269,7 +294,10 @@ export function shareText(s: State, o: ShareOptions, meta: Meta): string {
       out += `\n*${weekday(d)} ${dm(fromKey(d))}*\n`;
       for (const post of s.posts.filter(p => o.postIds.includes(p.id))) {
         for (const sl of daySlots(s, d, post)) {
-          out += `${post.name}${sl.allDay ? '' : ' ' + ltr(`${hm(sl.start)}–${hm(sl.end)}`)}: ${sl.assigned.map(name).filter(Boolean).join(', ') || '—'}\n`;
+          const who = post.roles.length > 1
+            ? post.roles.map(r => `${r.name}: ${peopleInRole(sl, r).map(name).filter(Boolean).join(', ') || '—'}`).join(' · ')
+            : sl.assigned.map(name).filter(Boolean).join(', ') || '—';
+          out += `${post.name}${sl.allDay ? '' : ' ' + ltr(`${hm(sl.start)}–${hm(sl.end)}`)}: ${who}\n`;
         }
       }
       for (const sl of extrasOn(s, d)) out += `${sl.name} ${ltr(`${hm(sl.start)}–${hm(sl.end)}`)}: ${sl.assigned.map(name).join(', ') || '—'}\n`;

@@ -2,17 +2,19 @@
 import { useState, type CSSProperties } from 'react';
 import { commit, useAppState } from '../../lib/store';
 import { POST_COLORS } from '../../lib/slots';
-import type { Post, ShiftDef } from '../../lib/types';
+import type { Post, Role, ShiftDef } from '../../lib/types';
 import { addDaysKey, dayName, fromKey, parseHM, todayKey, uid, weekday } from '../../lib/time';
 import { Icon } from '../icons';
 import { Field, Seg, Sheet, Stepper } from '../primitives';
 import { closeSheet, confirmDialog, toast } from '../uiStore';
 
+const base = (p: Partial<Post>): Post => ({ id: uid(), name: '', color: 0, allDay: false, blocks: true, rest: true, qual: '', roles: [], dayStart: '00:00', within: null, shifts: [], ...p });
 const TEMPLATES: { label: string; make: () => Post }[] = [
-  { label: 'שמירה 3 × 8 ש׳', make: () => ({ id: uid(), name: 'שמירה', color: 0, allDay: false, blocks: true, rest: true, qual: '', shifts: [{ id: uid(), start: '05:00', end: '13:00', need: 4 }, { id: uid(), start: '13:00', end: '21:00', need: 4 }, { id: uid(), start: '21:00', end: '05:00', need: 4 }] }) },
-  { label: 'שמירה 6 × 4 ש׳', make: () => ({ id: uid(), name: 'עמדה', color: 3, allDay: false, blocks: true, rest: true, qual: '', shifts: ['02', '06', '10', '14', '18', '22'].map((h, i, a) => ({ id: uid(), start: `${h}:00`, end: `${a[(i + 1) % a.length]}:00`, need: 2 })) }) },
-  { label: 'כוננות 24 ש׳', make: () => ({ id: uid(), name: 'כוננות', color: 1, allDay: false, blocks: true, rest: false, qual: '', shifts: [{ id: uid(), start: '12:00', end: '12:00', need: 6 }] }) },
-  { label: 'תורן יומי', make: () => ({ id: uid(), name: 'תורן', color: 2, allDay: true, blocks: false, rest: false, qual: '', shifts: [{ id: uid(), start: '00:00', end: '00:00', need: 1 }] }) },
+  { label: 'שמירה 3 × 8 ש׳', make: () => base({ name: 'שמירה', color: 0, shifts: [{ id: uid(), start: '05:00', end: '13:00', need: 4 }, { id: uid(), start: '13:00', end: '21:00', need: 4 }, { id: uid(), start: '21:00', end: '05:00', need: 4 }] }) },
+  { label: 'סיור: מפקד + נהג + 2', make: () => base({ name: 'סיור', color: 3, shifts: [{ id: uid(), start: '05:00', end: '13:00', need: 4 }, { id: uid(), start: '13:00', end: '21:00', need: 4 }, { id: uid(), start: '21:00', end: '05:00', need: 4 }], roles: [{ id: uid(), name: 'מפקד', qual: 'מפקד', count: 1 }, { id: uid(), name: 'נהג', qual: 'נהג', count: 1 }, { id: uid(), name: 'חיילים', qual: '', count: 2 }] }) },
+  { label: 'שמירה 6 × 4 ש׳', make: () => base({ name: 'עמדה', color: 5, shifts: ['02', '06', '10', '14', '18', '22'].map((h, i, a) => ({ id: uid(), start: `${h}:00`, end: `${a[(i + 1) % a.length]}:00`, need: 2 })) }) },
+  { label: 'כוננות 24 ש׳', make: () => base({ name: 'כוננות', color: 1, rest: false, shifts: [{ id: uid(), start: '12:00', end: '12:00', need: 6 }] }) },
+  { label: 'תורן יומי', make: () => base({ name: 'תורן', color: 2, allDay: true, blocks: false, rest: false, shifts: [{ id: uid(), start: '00:00', end: '00:00', need: 1 }] }) },
 ];
 
 export function PostsEditor({ focus }: { focus?: string }) {
@@ -64,7 +66,7 @@ export function PostsEditor({ focus }: { focus?: string }) {
                 ) : (
                   <div className="fld"><span className="fld-l">משמרות</span>
                     <div className="shift-list">
-                      {p.shifts.map(sh => <ShiftRow key={sh.id} sh={sh} onChange={nsh => upd(p.id, x => ({ ...x, shifts: x.shifts.map(y => (y.id === sh.id ? nsh : y)) }))} onDelete={() => upd(p.id, x => ({ ...x, shifts: x.shifts.filter(y => y.id !== sh.id) }))} />)}
+                      {p.shifts.map(sh => <ShiftRow key={sh.id} sh={sh} showNeed={!p.roles.length} onChange={nsh => upd(p.id, x => ({ ...x, shifts: x.shifts.map(y => (y.id === sh.id ? nsh : y)) }))} onDelete={() => upd(p.id, x => ({ ...x, shifts: x.shifts.filter(y => y.id !== sh.id) }))} />)}
                     </div>
                     <button type="button" className="btn btn-sm" onClick={() => upd(p.id, x => {
                       const last = x.shifts[x.shifts.length - 1];
@@ -82,6 +84,29 @@ export function PostsEditor({ focus }: { focus?: string }) {
                     <label className="check"><input type="checkbox" checked={p.blocks} onChange={e => upd(p.id, x => ({ ...x, blocks: e.target.checked }))} /><span className="grow"><b>תופסת את החייל</b><small>אי אפשר לשבץ אותו במקביל למשמרת אחרת.</small></span></label>
                   </>
                 ) : <p className="hint">תפקיד לכל היום לא חוסם משמרות אחרות ולא נספר במנוחה.</p>}
+                {!p.allDay ? <RolesEditor p={p} upd={f => upd(p.id, f)} /> : null}
+                {!p.allDay ? (
+                  <details className="box">
+                    <summary>מתקדם<Icon n="chevL" size={16} /></summary>
+                    <div>
+                      <Field label="היום של העמדה מתחיל ב־" hint="למשל 13:00: משמרת 00:00 נחשבת ללילה שאחרי התאריך. שימושי כשהכל מתחלף בצהריים.">
+                        <input className="inp" type="time" value={p.dayStart} onChange={e => upd(p.id, x => ({ ...x, dayStart: e.target.value || '00:00' }))} />
+                      </Field>
+                      <Field label="רק מתוך צוות של עמדה אחרת" hint="למשל מאזין שמגיע רק מהחיילים שבכרמל באותה שעה. העמדה לא חוסמת אותם.">
+                        <select className="inp" value={p.within ? `${p.within.postId}|${p.within.roleId ?? ''}` : ''} onChange={e => {
+                          const [pid, rid] = e.target.value.split('|');
+                          upd(p.id, x => (pid ? { ...x, within: { postId: pid, roleId: rid || null }, blocks: false, rest: false } : { ...x, within: null }));
+                        }}>
+                          <option value="">כל החיילים</option>
+                          {posts.filter(o => o.id !== p.id && !o.allDay).flatMap(o => [
+                            <option key={o.id} value={`${o.id}|`}>{o.name}</option>,
+                            ...o.roles.map(r => <option key={o.id + r.id} value={`${o.id}|${r.id}`}>{o.name} – {r.name}</option>),
+                          ])}
+                        </select>
+                      </Field>
+                    </div>
+                  </details>
+                ) : null}
                 <Field label="כשירות נדרשת (לא חובה)"><input className="inp" value={p.qual} onChange={e => upd(p.id, x => ({ ...x, qual: e.target.value }))} placeholder="למשל: נהג" /></Field>
                 <div className="row" style={{ marginTop: 14 }}>
                   <button type="button" className="btn btn-sm" disabled={i === 0} onClick={() => setPosts(ps => { const a = [...ps]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; return a; })}><Icon n="up" size={18} /> למעלה</button>
@@ -96,13 +121,13 @@ export function PostsEditor({ focus }: { focus?: string }) {
       <h4 className="grp">הוספת עמדה</h4>
       <div className="row">
         {TEMPLATES.map(t => <button key={t.label} className="pill" onClick={() => { const p = t.make(); p.color = posts.length % POST_COLORS.length; setPosts(ps => [...ps, p]); setOpen(p.id); }}><Icon n="plus" size={16} /> {t.label}</button>)}
-        <button className="pill" onClick={() => { const p: Post = { id: uid(), name: '', color: posts.length % POST_COLORS.length, allDay: false, blocks: true, rest: true, qual: '', shifts: [{ id: uid(), start: '08:00', end: '16:00', need: 2 }] }; setPosts(ps => [...ps, p]); setOpen(p.id); }}><Icon n="plus" size={16} /> עמדה ריקה</button>
+        <button className="pill" onClick={() => { const p: Post = base({ color: posts.length % POST_COLORS.length, shifts: [{ id: uid(), start: '08:00', end: '16:00', need: 2 }] }); setPosts(ps => [...ps, p]); setOpen(p.id); }}><Icon n="plus" size={16} /> עמדה ריקה</button>
       </div>
     </Sheet>
   );
 }
 
-function ShiftRow({ sh, onChange, onDelete }: { sh: ShiftDef; onChange: (s: ShiftDef) => void; onDelete: () => void }) {
+function ShiftRow({ sh, onChange, onDelete, showNeed }: { sh: ShiftDef; onChange: (s: ShiftDef) => void; onDelete: () => void; showNeed: boolean }) {
   const cross = parseHM(sh.end) <= parseHM(sh.start);
   return (
     <div className="shift-row">
@@ -110,7 +135,7 @@ function ShiftRow({ sh, onChange, onDelete }: { sh: ShiftDef; onChange: (s: Shif
       <span className="muted">עד</span>
       <input className="inp" type="time" value={sh.end} onChange={e => onChange({ ...sh, end: e.target.value })} aria-label="סיום" />
       {cross ? <span className="tag-mini">{sh.start === sh.end ? '24 ש׳' : '+1'}</span> : <span className="tag-mini ghost" />}
-      <Stepper label="חיילים" value={sh.need} min={0} onChange={v => onChange({ ...sh, need: v })} />
+      {showNeed ? <Stepper label="חיילים" value={sh.need} min={0} onChange={v => onChange({ ...sh, need: v })} /> : null}
       <button type="button" className="ibtn sm" onClick={onDelete} aria-label="מחק משמרת"><Icon n="trash" size={18} /></button>
     </div>
   );
@@ -139,5 +164,30 @@ export function PeriodSheet() {
       <p className="hint">הלוח יציג {weekday(start)} {start.split('-').reverse().slice(0, 2).map(Number).join('.')} עד {weekday(addDaysKey(start, days - 1))}. שיבוצים של ימים אחרים נשמרים ולא נמחקים.</p>
       <p className="hint">קיצור: החצים בראש המסך מזיזים את הלוח תקופה קדימה או אחורה.</p>
     </Sheet>
+  );
+}
+
+/** columns inside each shift, e.g. מפקד ×1 (needs מפקד), נהג ×1 (needs נהג), חיילים ×2 */
+function RolesEditor({ p, upd }: { p: Post; upd: (f: (p: Post) => Post) => void }) {
+  const set = (roles: Role[]) => upd(x => ({ ...x, roles }));
+  return (
+    <div className="fld"><span className="fld-l">תפקידים בכל משמרת</span>
+      {p.roles.length ? (
+        <div className="shift-list">
+          {p.roles.map(r => (
+            <div key={r.id} className="shift-row">
+              <input className="inp" style={{ width: 110 }} value={r.name} onChange={e => set(p.roles.map(y => (y.id === r.id ? { ...y, name: e.target.value } : y)))} aria-label="שם התפקיד" />
+              <input className="inp" style={{ width: 110 }} value={r.qual} placeholder="כשירות" onChange={e => set(p.roles.map(y => (y.id === r.id ? { ...y, qual: e.target.value } : y)))} aria-label="כשירות נדרשת" />
+              <Stepper label="כמות" value={r.count} min={0} onChange={v => set(p.roles.map(y => (y.id === r.id ? { ...y, count: v } : y)))} />
+              <button type="button" className="ibtn sm" onClick={() => set(p.roles.filter(y => y.id !== r.id))} aria-label="מחק תפקיד"><Icon n="trash" size={18} /></button>
+            </div>
+          ))}
+        </div>
+      ) : <p className="hint" style={{ marginTop: 0 }}>בלי תפקידים: עמודת ״שמות״ אחת.</p>}
+      <div className="row">
+        <button type="button" className="btn btn-sm" onClick={() => set([...p.roles, { id: uid(), name: p.roles.length ? 'חיילים' : 'מפקד', qual: p.roles.length ? '' : 'מפקד', count: p.roles.length ? 2 : 1 }])}><Icon n="plus" size={18} /> הוסף תפקיד</button>
+      </div>
+      <p className="hint">כל תפקיד הוא עמודה בלוח. תפקיד עם כשירות (נהג, מפקד) ימולא רק במי שיש לו אותה.</p>
+    </div>
   );
 }

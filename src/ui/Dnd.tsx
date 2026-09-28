@@ -5,12 +5,12 @@ import { DndContext, DragOverlay, MouseSensor, TouchSensor, useDroppable, useSen
 import { getState } from '../lib/store';
 import { boardSlots, evaluate, personOf } from '../lib/slots';
 import { dur } from '../lib/time';
-import { dropPerson, moveGroup, removeFrom } from './actions';
+import { changeRole, dropPerson, moveGroup, removeFrom } from './actions';
 import { Icon } from './icons';
 
 export type Verdict = { st: 'ok' | 'warn' | 'block' | 'src'; text: string };
 /** key is the shift the name was dragged out of; null when it comes from the soldiers panel */
-interface DragState { key: string | null; pid: string; name: string; verdict: Map<string, Verdict> }
+interface DragState { key: string | null; pid: string; name: string; quals: string[]; verdict: Map<string, Verdict> }
 export interface DragData { pid: string; key?: string }
 const Ctx = createContext<DragState | null>(null);
 export const useDrag = () => useContext(Ctx);
@@ -27,21 +27,24 @@ export function DndProvider({ children }: { children: ReactNode }) {
     const s = getState();
     const verdict = new Map<string, Verdict>();
     for (const sl of boardSlots(s)) {
-      if (sl.key === key) { verdict.set(sl.key, { st: 'src', text: 'מכאן' }); continue; }
+      if (sl.key === key) { verdict.set(sl.key, { st: sl.roles.length > 1 ? 'ok' : 'src', text: sl.roles.length > 1 ? 'החלפת תפקיד' : 'מכאן' }); continue; }
       if (sl.assigned.includes(pid)) { verdict.set(sl.key, { st: 'block', text: 'כבר כאן' }); continue; }
       const ev = evaluate(s, pid, sl, key ? [key] : []);
       verdict.set(sl.key, { st: ev.status, text: ev.status === 'ok' ? (ev.restBefore != null ? `נח ${dur(ev.restBefore)}` : 'אפשר') : ev.reasons[0] });
     }
     try { navigator.vibrate?.(12); } catch { /* ignore */ }
-    setDrag({ key, pid, name: personOf(s, pid)?.name ?? '', verdict });
+    const p = personOf(s, pid);
+    setDrag({ key, pid, name: p?.name ?? '', quals: p?.quals ?? [], verdict });
   };
   const onEnd = (e: DragEndEvent) => {
     const d = drag; setDrag(null);
     if (!d || !e.over) return;
-    const target = String(e.over.id);
-    if (!d.key) { if (target !== 'trash') void dropPerson(target, d.pid); return; }
+    // role columns are dropped on as "<slot key>@<role id>"
+    const [target, roleId = null] = String(e.over.id).split('@');
+    if (!d.key) { if (target !== 'trash') void dropPerson(target, d.pid, roleId); return; }
     if (target === 'trash') { removeFrom(d.key, d.pid); return; }
-    if (target !== d.key) void moveGroup([{ key: d.key, pid: d.pid }], target);
+    if (target !== d.key) void moveGroup([{ key: d.key, pid: d.pid }], target, roleId);
+    else if (roleId) void changeRole(d.key, d.pid, roleId);
   };
 
   return (

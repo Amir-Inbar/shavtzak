@@ -17,7 +17,7 @@ export function sampleState(): State {
     quals: i % 6 === 0 ? ['נהג'] : i % 7 === 3 ? ['חובש'] : [], unavail: [], note: '',
   }));
   const guard: Post = {
-    id: 'p-guard', name: 'שמירה', color: 0, allDay: false, blocks: true, rest: true, qual: '',
+    id: 'p-guard', name: 'שמירה', color: 0, allDay: false, blocks: true, rest: true, qual: '', roles: [], dayStart: '00:00', within: null,
     shifts: [
       { id: 's1', start: '05:00', end: '13:00', need: 4 },
       { id: 's2', start: '13:00', end: '21:00', need: 4 },
@@ -25,11 +25,11 @@ export function sampleState(): State {
     ],
   };
   const standby: Post = {
-    id: 'p-standby', name: 'כוננות', color: 1, allDay: false, blocks: true, rest: false, qual: '',
+    id: 'p-standby', name: 'כוננות', color: 1, allDay: false, blocks: true, rest: false, qual: '', roles: [], dayStart: '00:00', within: null,
     shifts: [{ id: 's1', start: '12:00', end: '12:00', need: 7 }],
   };
   const duty: Post = {
-    id: 'p-duty', name: 'תורן', color: 2, allDay: true, blocks: false, rest: false, qual: '',
+    id: 'p-duty', name: 'תורן', color: 2, allDay: true, blocks: false, rest: false, qual: '', roles: [], dayStart: '00:00', within: null,
     shifts: [{ id: 's1', start: '00:00', end: '00:00', need: 1 }],
   };
   s.posts = [guard, standby, duty];

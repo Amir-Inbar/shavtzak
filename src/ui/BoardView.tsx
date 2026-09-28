@@ -2,8 +2,8 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import type { CSSProperties } from 'react';
 import { useAppState } from '../lib/store';
-import { boardDays, daySlots, extrasOn, postColor, slotInfo } from '../lib/slots';
-import type { Evaluation, Person, Post, Slot, State } from '../lib/types';
+import { boardDays, daySlots, extrasOn, postColor, slotInfo, type RoleFill } from '../lib/slots';
+import type { Evaluation, Person, Post, Role, Slot, State } from '../lib/types';
 import { dm, durShortH, fromKey, hm, relDay, todayKey, weekday, addDaysKey } from '../lib/time';
 import { Icon } from './icons';
 import { useDrag } from './Dnd';
@@ -13,7 +13,9 @@ import { ChipMenu } from './sheets/ChipMenu';
 import { PostsEditor } from './sheets/Posts';
 import { ExtraForm } from './sheets/Extra';
 
-const openPicker = (key: string) => openSheet(() => <Picker slotKey={key} />);
+const openPicker = (key: string, roleId: string | null = null) => openSheet(() => <Picker slotKey={key} roleId={roleId} />);
+/** narrow columns for single-seat roles with a qualification (מפקד, נהג), wide for the rest */
+const roleCols = (roles: Role[]) => roles.map(r => (r.qual && r.count <= 1 ? 'minmax(84px, .8fr)' : 'minmax(0, 2fr)')).join(' ');
 
 export function BoardView({ search, now }: { search: string; now: number }) {
   const s = useAppState();
@@ -38,7 +40,8 @@ export function BoardView({ search, now }: { search: string; now: number }) {
 
 function PostTable({ s, post, days, search, now }: { s: State; post: Post; days: string[]; search: string; now: number }) {
   const today = todayKey();
-  const spans24 = post.shifts.length === 1 && !post.allDay && post.shifts[0].start === post.shifts[0].end;
+  const spans24 = !post.allDay && ((post.shifts.length === 1 && post.shifts[0].start === post.shifts[0].end) || post.dayStart !== '00:00');
+  const roles = post.roles.length > 1 ? post.roles : null;
   const style = { '--pc': postColor(post.color) } as CSSProperties;
   const sub = post.allDay ? 'כל היום' : post.shifts.map(sh => `\u2066${sh.start}–${sh.end}\u2069`).join(' · ');
   return (
@@ -49,12 +52,12 @@ function PostTable({ s, post, days, search, now }: { s: State; post: Post; days:
         <span className="pt-sub tm">{sub}</span>
         <button className="ibtn sm" onClick={() => openSheet(() => <PostsEditor focus={post.id} />)} aria-label={`עריכת ${post.name}`}><Icon n="edit" size={18} /></button>
       </header>
-      <table className="grid">
+      <table className="grid" style={roles ? ({ '--role-cols': roleCols(roles) } as CSSProperties) : undefined}>
         <thead>
           <tr>
             <th className="c-day" scope="col">יום</th>
             {post.allDay ? null : <th className="c-time" scope="col">שעות</th>}
-            <th scope="col">{post.allDay ? 'שם' : 'שמות'}</th>
+            <th scope="col">{roles ? <div className="roles head">{roles.map(r => <span key={r.id}>{r.name}</span>)}</div> : post.allDay ? 'שם' : 'שמות'}</th>
           </tr>
         </thead>
         {days.map(date => {
@@ -75,7 +78,7 @@ function PostTable({ s, post, days, search, now }: { s: State; post: Post; days:
                       </th>
                     ) : null}
                     {post.allDay ? null : <TimeCell sl={sl} s={s} live={live} />}
-                    <NamesCell s={s} sl={sl} search={search} showFill={post.allDay} />
+                    {roles ? <RolesCell s={s} sl={sl} search={search} /> : <NamesCell s={s} sl={sl} search={search} showFill={post.allDay} />}
                   </tr>
                 );
               })}
@@ -120,16 +123,46 @@ function NamesCell({ s, sl, search, showFill }: { s: State; sl: Slot; search: st
   );
 }
 
-function Chip({ sl, p, e, search }: { sl: Slot; p: Person; e: Evaluation; search: string }) {
+/** one row cell split into role columns (stacked with labels on a phone); each column is its own drop target */
+function RolesCell({ s, sl, search }: { s: State; sl: Slot; search: string }) {
+  const inf = slotInfo(s, sl);
+  return (
+    <td className="c-roles">
+      <div className="roles">{inf.roles.map(rf => <RoleBox key={rf.role.id} sl={sl} rf={rf} ev={inf.ev} search={search} />)}</div>
+      {sl.note ? <div className="cell-note">{sl.note}</div> : null}
+    </td>
+  );
+}
+function RoleBox({ sl, rf, ev, search }: { sl: Slot; rf: RoleFill; ev: Record<string, Evaluation>; search: string }) {
+  const drag = useDrag();
+  const { setNodeRef, isOver } = useDroppable({ id: `${sl.key}@${rf.role.id}` });
+  let v = drag?.verdict.get(sl.key);
+  if (v && v.st === 'ok' && rf.role.qual && drag && !drag.quals.includes(rf.role.qual)) v = { st: 'warn', text: `לא ${rf.role.qual}` };
+  const cls = ['rbox', v ? `drop-${v.st}` : '', isOver && v ? 'over' : ''].filter(Boolean).join(' ');
+  return (
+    <div ref={setNodeRef} className={cls} onClick={e => { if ((e.target as HTMLElement).closest('.chip')) return; e.stopPropagation(); openPicker(sl.key, rf.role.id); }}>
+      <span className="rlabel">{rf.role.name}</span>
+      <div className="names">
+        {rf.people.map(p => <Chip key={p.id} sl={sl} p={p} e={ev[p.id]} search={search} wrong={rf.wrongQual.includes(p) ? rf.role.qual : ''} />)}
+        {rf.missing ? <span className="slot-empty"><Icon n="plus" size={14} />{rf.missing === 1 ? 'פנוי' : `${rf.missing} פנויים`}</span> : null}
+      </div>
+      {v && v.st !== 'src' ? <div className={`drop-tag ${v.st}`}>{v.text}</div> : null}
+    </div>
+  );
+}
+
+function Chip({ sl, p, e, search, wrong = '' }: { sl: Slot; p: Person; e: Evaluation; search: string; wrong?: string }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `${sl.key}#${p.id}`, data: { key: sl.key, pid: p.id } });
   const q = search.trim();
   const hit = q && p.name.includes(q);
-  const cls = ['chip', e.status, isDragging ? 'src' : '', hit ? 'hit' : q ? 'dim' : ''].filter(Boolean).join(' ');
+  const st = e.status === 'ok' && wrong ? 'warn' : e.status;
+  const cls = ['chip', st, isDragging ? 'src' : '', hit ? 'hit' : q ? 'dim' : ''].filter(Boolean).join(' ');
   return (
     <button ref={setNodeRef} {...listeners} {...attributes} className={cls}
       onClick={() => openSheet(() => <ChipMenu slotKey={sl.key} pid={p.id} />)}
-      title={e.reasons.join(' · ') || undefined}>
+      title={[...e.reasons, wrong ? `אינו ${wrong}` : ''].filter(Boolean).join(' · ') || undefined}>
       {p.name}
+      {wrong && e.status === 'ok' ? <span className="cb">!</span> : null}
       {e.status === 'warn' && e.shortest != null ? <span className="cb"><Icon n="moon" size={11} />{durShortH(e.shortest)}</span> : null}
       {e.status === 'block' ? <span className="cb">!</span> : null}
     </button>

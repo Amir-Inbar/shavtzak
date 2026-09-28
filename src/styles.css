@@ -382,3 +382,25 @@ ol.steps { margin: 6px 0 0; padding-inline-start: 20px; font-size: 14px; color: 
 .tray .ro-item { flex: none; min-height: 40px; }
 .tray.closed { padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)); }
 @media (max-width: 999px) { #root { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); } .toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 104px); } }
+
+/* ================= role columns (מפקד | נהג | חיילים) ================= */
+.roles { display: grid; grid-template-columns: var(--role-cols, 1fr); gap: 0; }
+.roles.head span { font-size: 12px; font-weight: 700; color: var(--ink-3); padding-inline-start: 6px; }
+.grid td.c-roles { padding: 0; }
+.rbox { position: relative; min-height: 48px; padding: 7px 6px; border-inline-start: 1px solid var(--line-2); cursor: pointer; }
+.roles .rbox:first-child { border-inline-start: 0; }
+.rbox .rlabel { display: none; }
+.rbox.drop-ok { background: var(--ok-soft); box-shadow: inset 0 0 0 2px var(--ok); }
+.rbox.drop-warn { background: var(--warn-soft); box-shadow: inset 0 0 0 2px var(--warn-dot); }
+.rbox.drop-block { opacity: .45; }
+.rbox.over.drop-ok { background: color-mix(in srgb, var(--ok) 25%, transparent); }
+.rbox.over.drop-warn { background: color-mix(in srgb, var(--warn-dot) 30%, transparent); }
+@media (max-width: 700px) {
+  /* a phone can't fit three columns: stack the roles, each with its label */
+  .roles { grid-template-columns: 1fr; }
+  .roles.head { display: none; }
+  .rbox { display: flex; align-items: flex-start; gap: 6px; border-inline-start: 0; border-top: 1px solid var(--line-2); min-height: 44px; }
+  .roles .rbox:first-child { border-top: 0; }
+  .rbox .rlabel { display: block; flex: none; width: 46px; padding-top: 8px; font-size: 11.5px; font-weight: 700; color: var(--ink-3); }
+  .rbox .names { flex: 1; }
+}

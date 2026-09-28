@@ -9,6 +9,9 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
+// ask the browser not to clear saved data (people, board) when space runs low
+navigator.storage?.persist?.().catch(() => { /* not supported */ });
+
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => { /* offline mode unavailable */ }); });
 }

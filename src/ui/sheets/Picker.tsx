@@ -1,27 +1,30 @@
 // Choose who goes into a shift. Everyone is sorted by whether they can take it, with their rest shown big.
 import { useState } from 'react';
 import { getState, useAppState } from '../../lib/store';
-import { slotOf } from '../../lib/slots';
+import { peopleInRole, slotOf } from '../../lib/slots';
 import { HOUR, dur, weekday, dm, fromKey, hm } from '../../lib/time';
 import { Icon } from '../icons';
 import { Sheet } from '../primitives';
-import { applyPick, pickerGroups, removeFrom, autoFill, type Candidate } from '../actions';
+import { applyPick, pickerGroups, removeFrom, autoFill, roleById, type Candidate } from '../actions';
 import { closeSheet } from '../uiStore';
 
-export function Picker({ slotKey }: { slotKey: string }) {
+export function Picker({ slotKey, roleId = null }: { slotKey: string; roleId?: string | null }) {
   const s = useAppState();
   const sl = slotOf(s, slotKey);
   // the recommended soldiers start checked, so filling a shift is one tap
   const [sel, setSel] = useState<string[]>(() => {
     const s0 = getState(); const sl0 = slotOf(s0, slotKey);
     if (!sl0) return [];
-    return pickerGroups(s0, sl0).ok.slice(0, Math.max(0, sl0.need - sl0.assigned.length)).map(c => c.p.id);
+    const r0 = roleById(sl0, roleId);
+    const open = r0 ? r0.count - peopleInRole(sl0, r0).length : sl0.need - sl0.assigned.length;
+    return pickerGroups(s0, sl0, r0).ok.slice(0, Math.max(0, open)).map(c => c.p.id);
   });
   const [q, setQ] = useState('');
   if (!sl) return <Sheet title="המשמרת לא נמצאה"><p className="hint">ייתכן שהיא נמחקה.</p></Sheet>;
-  const g = pickerGroups(s, sl);
-  const missing = Math.max(0, sl.need - sl.assigned.length);
-  const choosable = new Set([...g.ok, ...g.warn, ...g.move].map(c => c.p.id));
+  const role = roleById(sl, roleId);
+  const g = pickerGroups(s, sl, role);
+  const missing = Math.max(0, role ? role.count - peopleInRole(sl, role).length : sl.need - sl.assigned.length);
+  const choosable = new Set([...g.ok, ...g.warn, ...g.move, ...g.noq].map(c => c.p.id));
   const chosen = sel.filter(id => choosable.has(id));
   const toggle = (id: string) => setSel(x => (x.includes(id) ? x.filter(i => i !== id) : [...x, id]));
   const match = (name: string) => !q.trim() || name.includes(q.trim());
@@ -36,12 +39,13 @@ export function Picker({ slotKey }: { slotKey: string }) {
     setSel(x => [...x, ...g.ok.filter(c => !x.includes(c.p.id)).slice(0, need).map(c => c.p.id)]);
   };
 
-  const row = (c: Candidate, kind: 'ok' | 'warn' | 'move' | 'out', i: number) => {
+  const row = (c: Candidate, kind: 'ok' | 'warn' | 'move' | 'noq' | 'out', i: number) => {
     const on = chosen.includes(c.p.id);
     const e = kind === 'move' && c.e2 ? c.e2 : c.e;
     let why = '';
     if (kind === 'ok') why = e.prev ? `אחרי ${e.prev.name} ${weekday(e.prev.date)} ${hm(e.prev.start)}–${hm(e.prev.end)}` : 'אין משמרת לפני';
     else if (kind === 'warn') why = e.reasons.join(' · ');
+    else if (kind === 'noq') why = [`אינו ${role?.qual}`, ...(e.status === 'warn' ? e.reasons : []), ...(e.status === 'block' && c.from ? [`עכשיו ב${c.from.name}`] : [])].join(' · ');
     else if (kind === 'move' && c.from) {
       const m = Math.max(0, c.from.need - (c.from.assigned.length - 1));
       why = `עכשיו ב${c.from.name} ${hm(c.from.start)}–${hm(c.from.end)} · שם ${m ? (m === 1 ? 'יחסר אחד' : `יחסרו ${m}`) : 'עדיין מאויש'}`;
@@ -60,24 +64,24 @@ export function Picker({ slotKey }: { slotKey: string }) {
           <span className="c-why">{why}</span>
         </span>
         {kind === 'out' ? null : (
-          <span className={`c-rest ${kind === 'warn' ? 'warn' : 'ok'}`}>
+          <span className={`c-rest ${kind === 'warn' || kind === 'noq' ? 'warn' : 'ok'}`}>
             <b>{rest == null ? '—' : dur(rest)}</b><small>מנוחה</small>
           </span>
         )}
       </button>
     );
   };
-  const grp = (k: 'ok' | 'warn' | 'move' | 'out', label: string, arr: Candidate[]) =>
+  const grp = (k: 'ok' | 'warn' | 'move' | 'noq' | 'out', label: string, arr: Candidate[]) =>
     arr.length ? (<><h4 className={`grp g-${k}`}><i />{label}<span className="n">{arr.length}</span></h4>{arr.map((c, i) => row(c, k, i))}</>) : null;
 
   const title = `${sl.name}${sl.allDay ? '' : ` ${hm(sl.start)}–${hm(sl.end)}`}`;
   return (
     <Sheet
-      title={<>שיבוץ: {sl.name} {sl.allDay ? null : <span className="tm" dir="ltr">{hm(sl.start)}–{hm(sl.end)}</span>}</>}
-      sub={<>{weekday(sl.date)} {dm(fromKey(sl.date))} · {sl.assigned.length}/{sl.need}{missing ? <b className="bad-t"> · {missing === 1 ? 'חסר אחד' : `חסרים ${missing}`}</b> : null}{sl.qual ? ` · נדרש ${sl.qual}` : ''}</>}
+      title={<>{role ? `${role.name} · ` : 'שיבוץ: '}{sl.name} {sl.allDay ? null : <span className="tm" dir="ltr">{hm(sl.start)}–{hm(sl.end)}</span>}</>}
+      sub={<>{weekday(sl.date)} {dm(fromKey(sl.date))} · {role ? `${peopleInRole(sl, role).length}/${role.count}` : `${sl.assigned.length}/${sl.need}`}{missing ? <b className="bad-t"> · {missing === 1 ? 'חסר אחד' : `חסרים ${missing}`}</b> : null}{role?.qual ? ` · רק ${role.qual}` : sl.qual ? ` · נדרש ${sl.qual}` : ''}</>}
       footer={<>
         {chosen.length ? <button className="btn" onClick={() => setSel([])}>נקה בחירה</button> : <button className="btn" onClick={recommend} disabled={!(missing && g.ok.length)}><Icon n="sparkle" /> בחר מומלצים</button>}
-        <button className="btn btn-primary" disabled={!chosen.length} onClick={async () => { if (await applyPick(sl.key, chosen)) closeSheet(); }}>{chosen.length ? `שבץ ${chosen.length}` : 'בחרו חיילים'}</button>
+        <button className="btn btn-primary" disabled={!chosen.length} onClick={async () => { if (await applyPick(sl.key, chosen, role?.id ?? null)) closeSheet(); }}>{chosen.length ? `שבץ ${chosen.length}` : 'בחרו חיילים'}</button>
       </>}
     >
       <label className="search in-sheet"><Icon n="search" size={18} /><input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש חייל" aria-label={`חיפוש חייל ל${title}`} /></label>
@@ -99,6 +103,7 @@ export function Picker({ slotKey }: { slotKey: string }) {
       {grp('ok', 'פנויים ונחו מספיק', g.ok)}
       {grp('warn', `פנויים – מנוחה קצרה מ־${dur(s.settings.minRest * HOUR)}`, g.warn)}
       {grp('move', 'במשמרת חופפת – אפשר להעביר', g.move)}
+      {role?.qual ? grp('noq', `בלי כשירות ${role.qual}`, g.noq) : null}
       {grp('out', 'לא זמינים', g.out)}
       {!s.people.length ? <p className="hint">אין עדיין חיילים. הוסיפו אותם בלשונית ״חיילים״.</p> : null}
       {missing > 1 ? <button className="link" onClick={() => void autoFill([sl.key])}>מלא את המשמרת הזו אוטומטית</button> : null}

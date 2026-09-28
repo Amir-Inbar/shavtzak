@@ -9,6 +9,7 @@ import { DndProvider } from './Dnd';
 import { BoardView } from './BoardView';
 import { FoundCard, PeopleSheet } from './People';
 import { Roster } from './Roster';
+import { RemoteBanner } from './RemoteBanner';
 import { autoFill } from './actions';
 import { ShareSheet } from './sheets/Share';
 import { SettingsSheet } from './sheets/Settings';
@@ -77,6 +78,7 @@ export function App() {
       </header>
 
       <main className="main">
+        <RemoteBanner />
         {s.settings.handedTo ? (
           <div className="banner warn"><p>הניהול הועבר ל{s.settings.handedTo.name}. שינויים כאן לא יגיעו אליו.</p>
             <button className="btn btn-sm" onClick={() => commit(d => { d.settings.handedTo = null; })}>החזר אליי</button></div>

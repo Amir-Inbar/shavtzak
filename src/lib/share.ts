@@ -33,33 +33,35 @@ function wrap(cx: Ctx, words: string[], sep: string, max: number, font: string):
 }
 const shiftLabel = (sl: Slot) => sl.allDay ? '' : `${hm(sl.start)}–${hm(sl.end)}`;
 
-/* ---------- blocks: each block is an unbreakable piece of a page ---------- */
-/** keep: never end a page right after this block (headers). spacer: dropped at page edges. */
-interface Block { h: number; draw: (cx: Ctx, y: number) => void; keep?: boolean; spacer?: boolean }
+/* ---------- blocks: horizontal strips drawn top to bottom ---------- */
+interface Block { h: number; draw: (cx: Ctx, y: number) => void }
+/** width of one table column in the image */
+const CW = 1000;
 
-function tableBlocks(cx: Ctx, s: State, o: ShareOptions, W: number): Block[] {
-  const blocks: Block[] = [];
+/** one group of blocks per post (plus one for extra tasks), each drawn between X0 and X1 */
+function tableGroups(cx: Ctx, s: State, o: ShareOptions, X0: number, X1: number): Block[][] {
+  const groups: Block[][] = [];
+  let blocks: Block[] = [];
   const posts = s.posts.filter(p => o.postIds.includes(p.id));
-  const X0 = P, X1 = W - P;
   const F_NAMES = `500 30px ${FUI}`, F_TIME = `600 30px ${FN}`, F_DAY = `700 30px ${FUI}`;
   const colTime = 240;
   for (const post of posts) {
+    blocks = [];
+    groups.push(blocks);
     const allDay = post.allDay;
     const spans24 = post.shifts.length === 1 && !allDay && post.shifts[0].start === post.shifts[0].end;
     const colDay = spans24 ? 250 : 170;
     const namesW = X1 - X0 - colDay - (allDay ? 0 : colTime) - 36;
     // post header
     blocks.push({
-      h: 76, keep: true, draw(cx, y) {
+      h: 76, draw(cx, y) {
         rr(cx, X1 - 26, y + 28, 22, 22, 6); cx.fillStyle = postColor(post.color); cx.fill();
         text(cx, post.name, X1 - 38, y + 50, `700 36px ${FN}`, C.ink);
-        const sub = allDay ? 'כל היום' : post.shifts.map(sh => `${sh.start}–${sh.end}`).join(' · ');
-        text(cx, ltr(sub), X0, y + 50, `500 26px ${FN}`, C.ink3, 'left', 'ltr');
       },
     });
     // column header
     blocks.push({
-      h: 52, keep: true, draw(cx, y) {
+      h: 52, draw(cx, y) {
         cx.fillStyle = C.head; cx.fillRect(X0, y, X1 - X0, 52);
         cx.fillStyle = C.lineStrong; cx.fillRect(X0, y, X1 - X0, 3);
         text(cx, 'יום', X1 - 16, y + 35, `700 24px ${FUI}`, C.ink2);
@@ -103,12 +105,13 @@ function tableBlocks(cx: Ctx, s: State, o: ShareOptions, W: number): Block[] {
         },
       });
     });
-    blocks.push({ h: 34, spacer: true, draw: () => { /* spacing */ } });
   }
   // one-off tasks
   const extras = o.days.flatMap(d => extrasOn(s, d));
   if (extras.length) {
-    blocks.push({ h: 70, keep: true, draw(cx, y) { text(cx, 'משימות נוספות', X1, y + 46, `700 34px ${FN}`, C.ink); } });
+    blocks = [];
+    groups.push(blocks);
+    blocks.push({ h: 70, draw(cx, y) { text(cx, 'משימות נוספות', X1, y + 46, `700 34px ${FN}`, C.ink); } });
     for (const sl of extras) {
       const names = sl.assigned.map(id => s.people.find(p => p.id === id)?.name).filter(Boolean) as string[];
       const lines = wrap(cx, names.length ? names : ['—'], ', ', X1 - X0 - 420, F_NAMES);
@@ -123,7 +126,7 @@ function tableBlocks(cx: Ctx, s: State, o: ShareOptions, W: number): Block[] {
       });
     }
   }
-  return blocks;
+  return groups;
 }
 
 function peopleBlocks(_cx: Ctx, s: State, o: ShareOptions, W: number): Block[] {
@@ -136,7 +139,7 @@ function peopleBlocks(_cx: Ctx, s: State, o: ShareOptions, W: number): Block[] {
   const blocks: Block[] = [];
   const showPost = s.posts.filter(p => posts.has(p.id)).length > 1 || s.extras.length > 0;
   blocks.push({
-    h: 56, keep: true, draw(cx, y) {
+    h: 56, draw(cx, y) {
       cx.fillStyle = C.head; cx.fillRect(X0, y, X1 - X0, 56);
       cx.fillStyle = C.lineStrong; cx.fillRect(X0, y, X1 - X0, 3);
       text(cx, 'שם', X1 - 16, y + 37, `700 24px ${FUI}`, C.ink2);
@@ -182,58 +185,63 @@ function peopleBlocks(_cx: Ctx, s: State, o: ShareOptions, W: number): Block[] {
 
 export interface Meta { v: number; at: number }
 
+/**
+ * Always one image with everything in it.
+ * Several posts are laid out side by side like the paper roster: the first post on the right,
+ * the others stacked on the left, balanced by height.
+ */
 export async function buildImages(s: State, o: ShareOptions, meta: Meta): Promise<{ files: File[]; urls: string[] }> {
   await fonts();
-  const W = o.mode === 'people' ? Math.max(1080, 2 * P + 210 + 110 + o.days.length * 200) : 1080;
   const cv = document.createElement('canvas'); const cx = cv.getContext('2d')!;
-  const blocks = o.mode === 'people' ? peopleBlocks(cx, s, o, W) : tableBlocks(cx, s, o, W);
-  const HEAD1 = 190, HEADN = 120, FOOT = 80, MAX = Math.round(W * 2.2);
-  while (blocks.length && blocks[blocks.length - 1].spacer) blocks.pop();
-  const paginate = (limit: number) => {
-    const out: Block[][] = []; let cur: Block[] = [], h = HEAD1;
-    for (let i = 0; i < blocks.length; i++) {
-      const b = blocks[i];
-      // a header must travel with what follows it
-      let need = b.h; for (let j = i; blocks[j]?.keep && j + 1 < blocks.length; j++) need += blocks[j + 1].h;
-      if (cur.length && h + need + FOOT > limit) {
-        if (b.spacer) continue;
-        out.push(cur); cur = []; h = HEADN;
-      }
-      if (b.spacer && !cur.length) continue;
-      cur.push(b); h += b.h;
+  const HEAD = 190, FOOT = 80, GAP = 34;
+  const groupH = (g: Block[]) => g.reduce((t, b) => t + b.h, 0);
+
+  // columns[i] = groups drawn in that column; columns[0] is the right-hand one
+  let W: number; let columns: Block[][][];
+  if (o.mode === 'people') {
+    W = Math.max(1080, 2 * P + 210 + 110 + o.days.length * 200);
+    columns = [[peopleBlocks(cx, s, o, W)]];
+  } else {
+    const groups = tableGroups(cx, s, o, P, P + CW).filter(g => g.length);
+    const total = groups.reduce((t, g) => t + groupH(g) + GAP, 0);
+    if (groups.length >= 2 && total > 1300) {
+      W = 3 * P + 2 * CW;
+      columns = [[groups[0]], []];
+      const hs = [groupH(groups[0]), 0];
+      for (const g of groups.slice(1)) { const c = hs[1] <= hs[0] ? 1 : 0; columns[c].push(g); hs[c] += GAP + groupH(g); }
+    } else {
+      W = 2 * P + CW;
+      columns = [groups];
     }
-    out.push(cur);
-    return out.map(pg => { while (pg.length && pg[pg.length - 1].spacer) pg.pop(); return pg; });
-  };
-  let pages = paginate(MAX);
-  if (pages.length > 1) {
-    // spread the content evenly instead of a full page plus a short one
-    const total = blocks.reduce((t, b) => t + b.h, 0);
-    const even = paginate(HEADN + FOOT + Math.ceil(total / pages.length) + Math.max(...blocks.map(b => b.h)) + 60);
-    if (even.length === pages.length) pages = even;
   }
+  const colH = columns.map(col => col.reduce((t, g, i) => t + (i ? GAP : 0) + groupH(g), 0));
+  const H = HEAD + Math.max(1, ...colH) + FOOT;
+  cv.width = W; cv.height = H;
+
   const first = o.days[0], last = o.days[o.days.length - 1];
   const period = first === last ? `${weekday(first)} ${dm(fromKey(first))}` : `${weekday(first)} ${dm(fromKey(first))} – ${weekday(last)} ${dm(fromKey(last))}`;
-  const files: File[] = [], urls: string[] = [];
-  for (let pi = 0; pi < pages.length; pi++) {
-    const head = pi ? HEADN : HEAD1;
-    const H = head + pages[pi].reduce((t, b) => t + b.h, 0) + FOOT;
-    cv.width = W; cv.height = H;
-    cx.fillStyle = C.bg; cx.fillRect(0, 0, W, H);
-    cx.fillStyle = C.band; cx.fillRect(0, 0, W, head - 30);
-    text(cx, s.settings.title, W - P, pi ? 64 : 82, `800 ${pi ? 40 : 54}px ${FN}`, '#FFFFFF');
-    text(cx, pi ? `${period} · המשך` : period, W - P, pi ? 100 : 132, `500 ${pi ? 26 : 32}px ${FUI}`, 'rgba(255,255,255,.75)');
-    text(cx, `גרסה ${meta.v}`, P, pi ? 64 : 82, `700 ${pi ? 26 : 30}px ${FUI}`, '#FFFFFF', 'left');
-    text(cx, ltr(`${dm(meta.at)} ${hm(meta.at)}`), P, pi ? 100 : 124, `500 24px ${FN}`, 'rgba(255,255,255,.6)', 'left', 'ltr');
-    let y = head;
-    for (const b of pages[pi]) { b.draw(cx, y); y += b.h; }
-    text(cx, `גרסה ${meta.v} · עודכן ${dm(meta.at)} בשעה ${hm(meta.at)}`, W - P, H - 30, `500 22px ${FUI}`, C.ink3);
-    if (pages.length > 1) text(cx, `${pi + 1}/${pages.length}`, P, H - 30, `600 22px ${FN}`, C.ink3, 'left', 'ltr');
-    const blob = await new Promise<Blob>(r => cv.toBlob(b => r(b!), 'image/png'));
-    files.push(new File([blob], `shavtzak-${first}-v${meta.v}${pages.length > 1 ? `-${pi + 1}` : ''}.png`, { type: 'image/png' }));
-    urls.push(URL.createObjectURL(blob));
-  }
-  return { files, urls };
+  cx.fillStyle = C.bg; cx.fillRect(0, 0, W, H);
+  cx.fillStyle = C.band; cx.fillRect(0, 0, W, HEAD - 30);
+  text(cx, s.settings.title, W - P, 82, `800 54px ${FN}`, '#FFFFFF');
+  text(cx, period, W - P, 132, `500 32px ${FUI}`, 'rgba(255,255,255,.75)');
+  text(cx, `גרסה ${meta.v}`, P, 82, `700 30px ${FUI}`, '#FFFFFF', 'left');
+  text(cx, ltr(`${dm(meta.at)} ${hm(meta.at)}`), P, 124, `500 24px ${FN}`, 'rgba(255,255,255,.6)', 'left', 'ltr');
+
+  columns.forEach((col, ci) => {
+    // tables were laid out for the left-most column; shift the right one over
+    const dx = o.mode === 'people' || columns.length === 1 || ci === 1 ? 0 : P + CW;
+    cx.save(); cx.translate(dx, 0);
+    let y = HEAD;
+    col.forEach((g, gi) => { if (gi) y += GAP; for (const b of g) { b.draw(cx, y); y += b.h; } });
+    cx.restore();
+  });
+  if (columns.length === 2) { cx.fillStyle = C.line; cx.fillRect(P + CW + P / 2 - 1, HEAD, 2, Math.max(...colH)); }
+  if (!colH.some(Boolean)) text(cx, 'אין מה להציג', W - P, HEAD + 60, `600 34px ${FUI}`, C.ink3);
+  text(cx, `גרסה ${meta.v} · עודכן ${dm(meta.at)} בשעה ${hm(meta.at)}`, W - P, H - 30, `500 22px ${FUI}`, C.ink3);
+
+  const blob = await new Promise<Blob>(r => cv.toBlob(b => r(b!), 'image/png'));
+  const file = new File([blob], `shavtzak-${first}-v${meta.v}.png`, { type: 'image/png' });
+  return { files: [file], urls: [URL.createObjectURL(blob)] };
 }
 
 /** bump the period's version whenever what would be shared changes */

@@ -44,11 +44,11 @@ export function ShareSheet() {
     } else { out.files.forEach((f, i) => setTimeout(() => downloadFile(f), i * 350)); toast('התמונות נשמרו – שלחו אותן מהגלריה'); }
   };
 
-  const toggle = (arr: string[], set: (v: string[]) => void, id: string) => set(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id]);
+  const toggle = (set: (f: (v: string[]) => string[]) => void, id: string) => set(arr => (arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id]));
   return (
     <Sheet title="שיתוף לווטסאפ" sub={`גרסה ${meta.v} · הנמענים מקבלים תמונה בלבד`} wide
       footer={<>
-        <button className="btn btn-accent" onClick={share} disabled={!out?.files.length}><Icon n="share" /> {out && out.files.length > 1 ? `שתף ${out.files.length} תמונות` : 'שתף'}</button>
+        <button className="btn btn-accent" onClick={share} disabled={!out?.files.length}><Icon n="share" /> שתף</button>
         <button className="btn" onClick={() => out?.files.forEach((f, i) => setTimeout(() => downloadFile(f), i * 350))} disabled={!out?.files.length}><Icon n="dl" /> שמור</button>
         <button className="btn" onClick={() => void copyText(shareText(s, opts, meta), 'הטקסט הועתק – הדביקו בקבוצה')}><Icon n="text" /> טקסט</button>
       </>}>
@@ -56,18 +56,17 @@ export function ShareSheet() {
         options={[['table', <><Icon n="table" size={18} /> טבלה</>], ['people', <><Icon n="users" size={18} /> לפי חיילים</>]]} />
       <p className="hint">{mode === 'table' ? 'כמו הלוח: לכל עמדה – ימים, שעות ושמות.' : 'שורה לכל חייל לפי א–ב, עמודה לכל יום. כל אחד מוצא את השם שלו ורואה מה הוא עושה בכל יום.'}</p>
       <div className="fld"><span className="fld-l">ימים</span>
-        <div className="row">{all.map(d => <button key={d} className={`pill${days.includes(d) ? ' on' : ''}`} onClick={() => toggle(days, setDays, d)}>{weekday(d)} {dm(fromKey(d))}</button>)}</div>
+        <div className="row">{all.map(d => <button key={d} className={`pill${days.includes(d) ? ' on' : ''}`} onClick={() => toggle(setDays, d)}>{weekday(d)} {dm(fromKey(d))}</button>)}</div>
       </div>
       {s.posts.length > 1 ? (
         <div className="fld"><span className="fld-l">עמדות</span>
-          <div className="row">{s.posts.map(p => <button key={p.id} className={`pill${posts.includes(p.id) ? ' on' : ''}`} onClick={() => toggle(posts, setPosts, p.id)}>{p.name}</button>)}</div>
+          <div className="row">{s.posts.map(p => <button key={p.id} className={`pill${posts.includes(p.id) ? ' on' : ''}`} onClick={() => toggle(setPosts, p.id)}>{p.name}</button>)}</div>
         </div>
       ) : null}
       {mode === 'table' ? <label className="check"><input type="checkbox" checked={notes} onChange={e => setNotes(e.target.checked)} /><span className="grow">להציג הערות למשמרות</span></label> : null}
       <div className="previews">
         {!opts.days.length ? <p className="hint">בחרו לפחות יום אחד.</p> : out ? out.urls.map((u, i) => <img key={u} src={u} alt={`תמונת שיבוץ ${i + 1}`} />) : <div className="skeleton" />}
       </div>
-      {out && out.files.length > 1 ? <p className="hint">הלוח ארוך, אז הוא פוצל ל־{out.files.length} תמונות כדי שיישאר קריא.</p> : null}
     </Sheet>
   );
 }

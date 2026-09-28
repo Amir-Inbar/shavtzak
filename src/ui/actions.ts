@@ -68,6 +68,16 @@ export async function applyPick(slotKey: string, ids: string[]): Promise<boolean
   return true;
 }
 
+/** A name dropped from the soldiers panel: add it to the shift, with the usual checks. */
+export async function dropPerson(key: string, pid: string): Promise<boolean> {
+  const s = getState(); const sl = slotOf(s, key), p = personOf(s, pid);
+  if (!sl || !p) return false;
+  if (sl.assigned.includes(pid)) { toast(`${p.name} כבר במשמרת הזו`); return false; }
+  const blocked = pickerGroups(s, sl).out.find(c => c.p.id === pid);
+  if (blocked) { toast(`${p.name}: ${blocked.e.reasons[0]}`); return false; }
+  return applyPick(key, [pid]);
+}
+
 export interface MoveItem { key: string; pid: string }
 
 /** Move people out of their slots into a target slot, after checking the target. */

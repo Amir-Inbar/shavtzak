@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { canUndo, commit, isStorageOk, undo, useAppState } from '../lib/store';
 import { boardDays, boardStats } from '../lib/slots';
 import { addDaysKey, daysBetween, dm, fromKey, todayKey, weekday } from '../lib/time';
@@ -8,6 +8,7 @@ import { closeSheet, openSheet, replaceSheet, toast } from './uiStore';
 import { DndProvider } from './Dnd';
 import { BoardView } from './BoardView';
 import { FoundCard, PeopleSheet } from './People';
+import { Roster } from './Roster';
 import { autoFill } from './actions';
 import { ShareSheet } from './sheets/Share';
 import { SettingsSheet } from './sheets/Settings';
@@ -25,10 +26,25 @@ function useNow() {
   return now;
 }
 
+function useWide() {
+  const mq = matchMedia('(min-width: 1000px)');
+  const [wide, setWide] = useState(mq.matches);
+  useEffect(() => { const f = () => setWide(mq.matches); mq.addEventListener('change', f); return () => mq.removeEventListener('change', f); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return wide;
+}
+
 export function App() {
   const s = useAppState();
   const now = useNow();
+  const wide = useWide();
   const [search, setSearch] = useState('');
+  const bar = useRef<HTMLElement>(null);
+  // the soldiers panel sticks right under the header
+  useEffect(() => {
+    const el = bar.current; if (!el) return;
+    const ro = new ResizeObserver(() => document.documentElement.style.setProperty('--appbar-h', `${el.offsetHeight}px`));
+    ro.observe(el); return () => ro.disconnect();
+  }, []);
   const days = boardDays(s);
   const stats = boardStats(s);
   const first = days[0], last = days[days.length - 1];
@@ -38,7 +54,7 @@ export function App() {
 
   return (
     <DndProvider>
-      <header className="appbar">
+      <header className="appbar" ref={bar}>
         <div className="bar">
           <div className="brand"><b>{s.settings.title}</b></div>
           {canUndo() ? <button className="ibtn" onClick={() => { undo(); toast('הפעולה בוטלה'); }} aria-label="ביטול הפעולה האחרונה" title="בטל"><Icon n="undo" /></button> : null}
@@ -79,8 +95,14 @@ export function App() {
         ) : null}
 
         <FoundCard search={search} />
-        <BoardView search={search} now={now} />
+        {wide ? (
+          <div className="layout">
+            <Roster active={search.trim()} onPick={setSearch} />
+            <BoardView search={search} now={now} />
+          </div>
+        ) : <BoardView search={search} now={now} />}
       </main>
+      {!wide ? <Roster tray active={search.trim()} onPick={setSearch} /> : null}
 
       <SheetHost />
       <DialogHost />

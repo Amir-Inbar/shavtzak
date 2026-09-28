@@ -7,6 +7,7 @@ import { Icon } from './icons';
 import { Sheet } from './primitives';
 import { openSheet } from './uiStore';
 import { PasteList, SoldierSheet } from './sheets/Soldier';
+import { glyphOf, rankOf } from '../lib/rank';
 
 export function PeopleSheet() {
   const s = useAppState();
@@ -25,8 +26,9 @@ export function PeopleSheet() {
             const off = p.unavail.some(u => u.end > Date.now());
             return (
               <button key={p.id} className="prow" onClick={() => openSheet(() => <SoldierSheet id={p.id} />)}>
+                <span className="pc">{glyphOf(p)}</span>
                 <b>{p.name}</b>
-                <span className="muted grow">{[p.team, ...p.quals].filter(Boolean).join(' · ')}</span>
+                <span className="muted grow">{[rankOf(p), p.team].filter(Boolean).join(' · ')}</span>
                 {off ? <span className="tag bad">לא זמין</span> : null}
                 <span className="tag">{n} משמרות</span>
               </button>

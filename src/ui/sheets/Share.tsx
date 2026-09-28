@@ -12,7 +12,7 @@ import { canShareFiles, copyText, downloadFile } from '../io';
 export function ShareSheet() {
   const s = useAppState();
   const all = boardDays(s);
-  const [mode, setMode] = useState<ShareMode>(() => (localStorage.getItem('shavtzak.shareMode') as ShareMode) || 'table');
+  const [mode, setMode] = useState<ShareMode>(() => (localStorage.getItem('shavtzak.shareMode2') as ShareMode) || 'combined');
   const [days, setDays] = useState<string[]>(all);
   const [posts, setPosts] = useState<string[]>(s.posts.map(p => p.id));
   const [notes, setNotes] = useState(false);
@@ -52,9 +52,9 @@ export function ShareSheet() {
         <button className="btn" onClick={() => out?.files.forEach((f, i) => setTimeout(() => downloadFile(f), i * 350))} disabled={!out?.files.length}><Icon n="dl" /> שמור</button>
         <button className="btn" onClick={() => void copyText(shareText(s, opts, meta), 'הטקסט הועתק – הדביקו בקבוצה')}><Icon n="text" /> טקסט</button>
       </>}>
-      <Seg full value={mode} onChange={v => { setMode(v); try { localStorage.setItem('shavtzak.shareMode', v); } catch { /* ignore */ } }}
-        options={[['table', <><Icon n="table" size={18} /> טבלה</>], ['people', <><Icon n="users" size={18} /> לפי חיילים</>]]} />
-      <p className="hint">{mode === 'table' ? 'כמו הלוח: לכל עמדה – ימים, שעות ושמות.' : 'שורה לכל חייל לפי א–ב, עמודה לכל יום. כל אחד מוצא את השם שלו ורואה מה הוא עושה בכל יום.'}</p>
+      <Seg full value={mode} onChange={v => { setMode(v); try { localStorage.setItem('shavtzak.shareMode2', v); } catch { /* ignore */ } }}
+        options={[['combined', <><Icon n="table" size={18} /> טבלה אחת</>], ['table', <><Icon n="list" size={18} /> לפי עמדה</>], ['people', <><Icon n="users" size={18} /> לפי חיילים</>]]} />
+      <p className="hint">{mode === 'combined' ? 'כל העמדות בטבלה אחת: יום, שעות, ולכל עמדה עמודה לכל תפקיד.' : mode === 'table' ? 'טבלה נפרדת לכל עמדה – ימים, שעות ושמות.' : 'שורה לכל חייל לפי א–ב, עמודה לכל יום. כל אחד מוצא את השם שלו ורואה מה הוא עושה בכל יום.'}</p>
       <div className="fld"><span className="fld-l">ימים</span>
         <div className="row">{all.map(d => <button key={d} className={`pill${days.includes(d) ? ' on' : ''}`} onClick={() => toggle(setDays, d)}>{weekday(d)} {dm(fromKey(d))}</button>)}</div>
       </div>
@@ -63,7 +63,7 @@ export function ShareSheet() {
           <div className="row">{s.posts.map(p => <button key={p.id} className={`pill${posts.includes(p.id) ? ' on' : ''}`} onClick={() => toggle(setPosts, p.id)}>{p.name}</button>)}</div>
         </div>
       ) : null}
-      {mode === 'table' ? <label className="check"><input type="checkbox" checked={notes} onChange={e => setNotes(e.target.checked)} /><span className="grow">להציג הערות למשמרות</span></label> : null}
+      {mode !== 'people' ? <label className="check"><input type="checkbox" checked={notes} onChange={e => setNotes(e.target.checked)} /><span className="grow">להציג הערות למשמרות</span></label> : null}
       <div className="previews">
         {!opts.days.length ? <p className="hint">בחרו לפחות יום אחד.</p> : out ? out.urls.map((u, i) => <img key={u} src={u} alt={`תמונת שיבוץ ${i + 1}`} />) : <div className="skeleton" />}
       </div>

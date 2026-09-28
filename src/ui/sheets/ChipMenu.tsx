@@ -6,7 +6,7 @@ import { dur, weekday, hm } from '../../lib/time';
 import { Icon } from '../icons';
 import { MenuItem, Sheet } from '../primitives';
 import { moveGroup, removeFrom, swapPeople, slotLabel } from '../actions';
-import { closeSheet, openSheet } from '../uiStore';
+import { closeSheet, openSheet, setSearch } from '../uiStore';
 import { SoldierSheet } from './Soldier';
 
 export function ChipMenu({ slotKey, pid }: { slotKey: string; pid: string }) {
@@ -20,6 +20,7 @@ export function ChipMenu({ slotKey, pid }: { slotKey: string; pid: string }) {
         ? <p className="okbox">אין התרעות{e.restBefore != null ? ` · נח ${dur(e.restBefore)} לפני` : ''}{e.restAfter != null ? ` · ${dur(e.restAfter)} אחרי` : ''}</p>
         : <ul className="notes">{e.reasons.map((r, i) => <li key={i} className={e.status === 'block' ? 'bad' : 'warn'}>{r}</li>)}</ul>}
       <div className="menu">
+        <MenuItem icon="search" label={`סמן בלוח את כל השיבוצים של ${p.name}`} onClick={() => { setSearch(p.name); closeSheet(); }} />
         <MenuItem icon="move" label="העבר למשמרת אחרת" onClick={() => openSheet(() => <Targets mode="move" slotKey={slotKey} pid={pid} />)} />
         <MenuItem icon="swap" label="החלף עם חייל אחר" sub="שניהם עוברים משמרת" onClick={() => openSheet(() => <Targets mode="swap" slotKey={slotKey} pid={pid} />)} />
         <MenuItem icon="x" label="הסר מהמשמרת" onClick={() => { removeFrom(slotKey, pid); closeSheet(); }} />

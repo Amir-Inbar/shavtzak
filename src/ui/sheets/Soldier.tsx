@@ -5,6 +5,8 @@ import { boardDays, personNow, postColor, restBefore, slotsOfPerson } from '../.
 import type { Person } from '../../lib/types';
 import { DAY, HOUR, dur, fromKey, hm, todayKey, toKey, uid, weekday, whenShort, relDay } from '../../lib/time';
 import { Icon } from '../icons';
+import { PIECES, RANKS, glyphOf, pieceOf, rankOf } from '../../lib/rank';
+import { setSearch } from '../uiStore';
 import { Field, Sheet } from '../primitives';
 import { closeSheet, confirmDialog, toast } from '../uiStore';
 
@@ -14,7 +16,7 @@ export function SoldierSheet({ id }: { id: string | null }) {
   const s = useAppState();
   const existing = id ? s.people.find(p => p.id === id) : null;
   const [edit, setEdit] = useState(!id);
-  const [d, setD] = useState<Person>(() => existing ? structuredClone(existing) : { id: '', name: '', team: '', quals: [], unavail: [], note: '' });
+  const [d, setD] = useState<Person>(() => existing ? structuredClone(existing) : { id: '', name: '', rank: '', piece: '', team: '', quals: [], unavail: [], note: '' });
   const nowH = new Date(); nowH.setMinutes(0, 0, 0); nowH.setHours(nowH.getHours() + 1);
   const [u, setU] = useState({ fd: toKey(nowH.getTime()), ft: hm(nowH.getTime()), td: toKey(nowH.getTime() + DAY), tt: hm(nowH.getTime()), reason: 'חופשה' });
   const [newQ, setNewQ] = useState('');
@@ -112,11 +114,11 @@ export function SoldierSheet({ id }: { id: string | null }) {
   const sub = existing ? [existing.team, ...existing.quals].filter(Boolean).join(' · ') : '';
   return (
     <Sheet
-      title={existing ? existing.name : 'חייל חדש'}
-      sub={sub || undefined}
+      title={existing ? <><span className="pc big">{glyphOf(existing)}</span> {existing.name}</> : 'חייל חדש'}
+      sub={existing ? [rankOf(existing), sub].filter(Boolean).join(' · ') : undefined}
       footer={edit
         ? <><button className="btn btn-primary" onClick={save}>שמור</button>{existing ? <button className="btn" onClick={() => { setD(structuredClone(existing)); setEdit(false); }}>ביטול</button> : null}{existing ? <button className="btn danger-t" onClick={remove}><Icon n="trash" /> מחק</button> : null}</>
-        : <button className="btn" onClick={() => setEdit(true)}><Icon n="edit" /> עריכת פרטים וזמינות</button>}
+        : <><button className="btn btn-accent" onClick={() => { setSearch(existing!.name); closeSheet(); }}><Icon n="search" /> סמן בלוח</button><button className="btn" onClick={() => setEdit(true)}><Icon n="edit" /> עריכה וזמינות</button></>}
     >
       {schedule}
       {edit ? (
@@ -126,6 +128,16 @@ export function SoldierSheet({ id }: { id: string | null }) {
             <Field label="צוות / כיתה"><input className="inp" value={d.team} list="dl-teams" onChange={e => setD({ ...d, team: e.target.value })} placeholder="למשל: כיתה 1" autoComplete="off" /></Field>
           </div>
           <datalist id="dl-teams">{teams.map(t => <option key={t} value={t} />)}</datalist>
+          <div className="fld"><span className="fld-l">תפקיד</span>
+            <div className="row">
+              {RANKS.map(r => <button key={r.name} type="button" className={`pill${rankOf(d) === r.name ? ' on' : ''}`} onClick={() => setD({ ...d, rank: r.name, piece: '', quals: r.name === 'מפקד' && !d.quals.includes('מפקד') ? [...d.quals, 'מפקד'] : r.name === 'נהג' && !d.quals.includes('נהג') ? [...d.quals, 'נהג'] : d.quals })}>{r.name}</button>)}
+            </div>
+          </div>
+          <div className="fld"><span className="fld-l">כלי שחמט</span>
+            <div className="row">
+              {PIECES.map(x => <button key={x.id} type="button" className={`pill piece-pill${pieceOf(d) === x.id ? ' on' : ''}`} onClick={() => setD({ ...d, piece: x.id })} title={x.name}><span className="pc">{x.glyph}{'\uFE0E'}</span>{x.name}</button>)}
+            </div>
+          </div>
           <div className="fld"><span className="fld-l">כשירויות</span>
             <div className="row">
               {quals.map(q => {
@@ -181,7 +193,7 @@ export function PasteList() {
   }
   const add = () => {
     if (!parsed.length) { toast(dup.length ? 'כל השמות כבר ברשימה' : 'לא נמצאו שמות'); return; }
-    commit(st => { st.people.push(...parsed.map(x => ({ id: uid(), name: x.name, team: x.team, quals: [], unavail: [], note: '' }))); });
+    commit(st => { st.people.push(...parsed.map(x => ({ id: uid(), name: x.name, rank: '', piece: '' as const, team: x.team, quals: [], unavail: [], note: '' }))); });
     closeSheet(); toast(`נוספו ${parsed.length} חיילים${dup.length ? ` · ${dup.length} כבר היו ברשימה` : ''}`, { undo: true });
   };
   return (

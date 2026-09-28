@@ -34,9 +34,15 @@ export interface Post {
 
 export interface Unavail { id: string; start: number; end: number; reason: string }
 
+export type Piece = 'pawn' | 'knight' | 'bishop' | 'rook' | 'queen' | 'king';
+
 export interface Person {
   id: string;
   name: string;
+  /** what they are: לוחם, נהג, מפקד… (empty = worked out from qualifications) */
+  rank: string;
+  /** chess piece shown next to the name (empty = worked out from the rank) */
+  piece: Piece | '';
   team: string;
   quals: string[];
   unavail: Unavail[];

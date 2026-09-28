@@ -7,6 +7,8 @@ import type { Evaluation, Person, Post, Role, Slot, State } from '../lib/types';
 import { dm, durShortH, fromKey, hm, relDay, todayKey, weekday, addDaysKey } from '../lib/time';
 import { Icon } from './icons';
 import { useDrag } from './Dnd';
+import { combinedRows, postCols } from '../lib/combined';
+import { glyphOf } from '../lib/rank';
 import { openSheet } from './uiStore';
 import { Picker } from './sheets/Picker';
 import { ChipMenu } from './sheets/ChipMenu';
@@ -17,7 +19,7 @@ const openPicker = (key: string, roleId: string | null = null) => openSheet(() =
 /** narrow columns for single-seat roles with a qualification (מפקד, נהג), wide for the rest */
 const roleCols = (roles: Role[]) => roles.map(r => (r.qual && r.count <= 1 ? 'minmax(84px, .8fr)' : 'minmax(0, 2fr)')).join(' ');
 
-export function BoardView({ search, now }: { search: string; now: number }) {
+export function BoardView({ search, now, combined = false }: { search: string; now: number; combined?: boolean }) {
   const s = useAppState();
   const days = boardDays(s);
   const extras = days.flatMap(d => extrasOn(s, d));
@@ -27,6 +29,14 @@ export function BoardView({ search, now }: { search: string; now: number }) {
         <h3>עוד אין עמדות</h3>
         <p>עמדה היא תפקיד שחוזר כל יום עם משמרות קבועות – למשל שמירה 05–13, 13–21, 21–05.</p>
         <button className="btn btn-primary" onClick={() => openSheet(() => <PostsEditor />)}><Icon n="post" /> הגדרת עמדות</button>
+      </div>
+    );
+  }
+  if (combined && s.posts.length > 1) {
+    return (
+      <div className="boards">
+        <CombinedTable s={s} days={days} search={search} now={now} />
+        {extras.length ? <ExtrasTable s={s} slots={extras} search={search} now={now} /> : null}
       </div>
     );
   }
@@ -103,12 +113,13 @@ function TimeCell({ sl, s, live }: { sl: Slot; s: State; live: boolean }) {
   );
 }
 
-function NamesCell({ s, sl, search, showFill }: { s: State; sl: Slot; search: string; showFill?: boolean }) {
+function NamesCell({ s, sl, search, showFill, first }: { s: State; sl: Slot; search: string; showFill?: boolean; first?: boolean }) {
   const drag = useDrag();
   const { setNodeRef, isOver } = useDroppable({ id: sl.key });
   const inf = slotInfo(s, sl);
   const v = drag?.verdict.get(sl.key);
-  const cls = ['c-names', v ? `drop-${v.st}` : '', isOver && v ? 'over' : '', inf.missing ? 'short' : ''].filter(Boolean).join(' ');
+  const hl = !!search.trim() && inf.people.some(p => p.name.includes(search.trim()));
+  const cls = ['c-names', first ? 'first' : '', v ? `drop-${v.st}` : '', isOver && v ? 'over' : '', inf.missing ? 'short' : '', hl ? 'hl' : ''].filter(Boolean).join(' ');
   return (
     <td ref={setNodeRef} className={cls} onClick={e => { if ((e.target as HTMLElement).closest('.chip')) return; openPicker(sl.key); }}>
       <div className="names">
@@ -138,7 +149,8 @@ function RoleBox({ sl, rf, ev, search }: { sl: Slot; rf: RoleFill; ev: Record<st
   const { setNodeRef, isOver } = useDroppable({ id: `${sl.key}@${rf.role.id}` });
   let v = drag?.verdict.get(sl.key);
   if (v && v.st === 'ok' && rf.role.qual && drag && !drag.quals.includes(rf.role.qual)) v = { st: 'warn', text: `לא ${rf.role.qual}` };
-  const cls = ['rbox', v ? `drop-${v.st}` : '', isOver && v ? 'over' : ''].filter(Boolean).join(' ');
+  const hl = !!search.trim() && rf.people.some(p => p.name.includes(search.trim()));
+  const cls = ['rbox', v ? `drop-${v.st}` : '', isOver && v ? 'over' : '', hl ? 'hl' : ''].filter(Boolean).join(' ');
   return (
     <div ref={setNodeRef} className={cls} onClick={e => { if ((e.target as HTMLElement).closest('.chip')) return; e.stopPropagation(); openPicker(sl.key, rf.role.id); }}>
       <span className="rlabel">{rf.role.name}</span>
@@ -161,7 +173,7 @@ function Chip({ sl, p, e, search, wrong = '' }: { sl: Slot; p: Person; e: Evalua
     <button ref={setNodeRef} {...listeners} {...attributes} className={cls}
       onClick={() => openSheet(() => <ChipMenu slotKey={sl.key} pid={p.id} />)}
       title={[...e.reasons, wrong ? `אינו ${wrong}` : ''].filter(Boolean).join(' · ') || undefined}>
-      {p.name}
+      <span className="pc">{glyphOf(p)}</span>{p.name}
       {wrong && e.status === 'ok' ? <span className="cb">!</span> : null}
       {e.status === 'warn' && e.shortest != null ? <span className="cb"><Icon n="moon" size={11} />{durShortH(e.shortest)}</span> : null}
       {e.status === 'block' ? <span className="cb">!</span> : null}
@@ -189,6 +201,81 @@ function ExtrasTable({ s, slots, search, now }: { s: State; slots: Slot[]; searc
           })}
         </tbody>
       </table>
+    </section>
+  );
+}
+
+/** all posts in one table, like the paper roster: day | hours | patrol (מפקד | נהג | חיילים) | כרמל | תורן */
+function CombinedTable({ s, days, search, now }: { s: State; days: string[]; search: string; now: number }) {
+  const today = todayKey();
+  const posts = s.posts;
+  return (
+    <section className="ptable combined" aria-label="לוח שיבוץ">
+      <div className="ctable-wrap">
+        <table className="grid ctable">
+          <thead>
+            <tr>
+              <th className="c-day" rowSpan={2} scope="col">יום</th>
+              <th className="c-time" rowSpan={2} scope="col">שעות</th>
+              {posts.map(p => (
+                <th key={p.id} colSpan={postCols(p)} className="c-grp" style={{ '--pc': postColor(p.color) } as CSSProperties}>
+                  <span className="grp-h"><i className="pdot" />{p.name}
+                    <button className="ibtn sm" onClick={() => openSheet(() => <PostsEditor focus={p.id} />)} aria-label={`עריכת ${p.name}`}><Icon n="edit" size={16} /></button></span>
+                </th>
+              ))}
+            </tr>
+            <tr>
+              {posts.flatMap(p => (p.roles.length > 1
+                ? p.roles.map((r, i) => <th key={p.id + r.id} className={`c-sub${i === 0 ? ' first' : ''}`} scope="col">{r.name}</th>)
+                : [<th key={p.id} className="c-sub first" scope="col">{p.allDay || p.shifts.every(sh => sh.need <= 1) ? 'שם' : 'שמות'}</th>]))}
+            </tr>
+          </thead>
+          {days.map(date => {
+            const rows = combinedRows(s, date, posts);
+            if (!rows.length) return null;
+            const rel = relDay(date);
+            return (
+              <tbody key={date} className={date === today ? 'today' : ''}>
+                {rows.map((row, ri) => {
+                  const live = row.start <= now && row.end > now;
+                  return (
+                    <tr key={row.key} className={live ? 'live' : row.end <= now ? 'past' : ''}>
+                      {ri === 0 ? (
+                        <th className="c-day" rowSpan={rows.length} scope="rowgroup">
+                          <b>{weekday(date)}</b>
+                          <small className="tm">{dm(fromKey(date))}</small>
+                          {rel ? <em>{rel}</em> : null}
+                        </th>
+                      ) : null}
+                      <td className="c-time">
+                        <b className="tm">{hm(row.start)}</b>
+                        <span className="tm t-end">{hm(row.end)}</span>
+                        {live ? <span className="live-tag">עכשיו</span> : null}
+                      </td>
+                      {posts.flatMap((p, pi) => {
+                        const cell = row.cells[pi];
+                        if (cell.kind !== 'slot') {
+                          return [<td key={p.id} colSpan={postCols(p)} className={`c-empty first${cell.kind === 'cont' ? ' cont' : ''}`}>{cell.kind === 'cont' ? '—' : ''}</td>];
+                        }
+                        const sl = cell.slot;
+                        if (sl.roles.length > 1) {
+                          const inf = slotInfo(s, sl);
+                          return inf.roles.map((rf, i) => (
+                            <td key={p.id + rf.role.id} className={`c-rolecell${i === 0 ? ' first' : ''}`}>
+                              <RoleBox sl={sl} rf={rf} ev={inf.ev} search={search} />
+                            </td>
+                          ));
+                        }
+                        return [<NamesCell key={p.id} s={s} sl={sl} search={search} first />];
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            );
+          })}
+        </table>
+      </div>
     </section>
   );
 }

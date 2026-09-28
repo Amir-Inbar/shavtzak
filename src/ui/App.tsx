@@ -4,7 +4,7 @@ import { boardDays, boardStats } from '../lib/slots';
 import { addDaysKey, daysBetween, dm, fromKey, todayKey, weekday } from '../lib/time';
 import { Icon } from './icons';
 import { DialogHost, MenuItem, Sheet, SheetHost, ToastHost } from './primitives';
-import { closeSheet, openSheet, replaceSheet, toast } from './uiStore';
+import { closeSheet, openSheet, replaceSheet, setSearch, toast, useUI } from './uiStore';
 import { DndProvider } from './Dnd';
 import { BoardView } from './BoardView';
 import { FoundCard, PeopleSheet } from './People';
@@ -37,7 +37,7 @@ export function App() {
   const s = useAppState();
   const now = useNow();
   const wide = useWide();
-  const [search, setSearch] = useState('');
+  const { search } = useUI();
   const bar = useRef<HTMLElement>(null);
   // the soldiers panel sticks right under the header
   useEffect(() => {
@@ -98,7 +98,7 @@ export function App() {
         {wide ? (
           <div className="layout">
             <Roster active={search.trim()} onPick={setSearch} />
-            <BoardView search={search} now={now} />
+            <BoardView search={search} now={now} combined />
           </div>
         ) : <BoardView search={search} now={now} />}
       </main>

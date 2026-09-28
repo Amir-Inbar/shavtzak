@@ -39,6 +39,7 @@ export function normalize(raw: unknown): State {
     })) : [],
     people: Array.isArray(o.people) ? o.people.filter(Boolean).map((p: any): Person => ({
       id: str(p.id) || uid(), name: str(p.name).trim() || 'ללא שם', team: str(p.team),
+      rank: str(p.rank).trim(), piece: (['pawn', 'knight', 'bishop', 'rook', 'queen', 'king'].includes(p.piece) ? p.piece : '') as Person['piece'],
       quals: Array.isArray(p.quals) ? p.quals.map((q: unknown) => str(q)).filter(Boolean) : [],
       unavail: Array.isArray(p.unavail) ? p.unavail.filter((u: any) => u && num(u.end) > num(u.start))
         .map((u: any) => ({ id: str(u.id) || uid(), start: num(u.start), end: num(u.end), reason: str(u.reason) })) : [],

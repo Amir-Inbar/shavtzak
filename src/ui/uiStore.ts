@@ -4,9 +4,9 @@ import { useSyncExternalStore, type ReactNode } from 'react';
 export interface DialogItem { lv: 'warn' | 'bad' | 'info'; text: string }
 export interface DialogReq { title: string; text?: string; items?: DialogItem[]; ok?: string; cancel?: string; danger?: boolean; resolve: (v: boolean) => void }
 export interface ToastReq { id: number; msg: string; undo: boolean }
-interface UIState { sheets: { id: number; render: () => ReactNode }[]; dialog: DialogReq | null; toast: ToastReq | null }
+interface UIState { sheets: { id: number; render: () => ReactNode }[]; dialog: DialogReq | null; toast: ToastReq | null; search: string }
 
-let ui: UIState = { sheets: [], dialog: null, toast: null };
+let ui: UIState = { sheets: [], dialog: null, toast: null, search: '' };
 const subs = new Set<() => void>();
 const set = (p: Partial<UIState>) => { ui = { ...ui, ...p }; subs.forEach(f => f()); };
 export function useUI() { return useSyncExternalStore(f => { subs.add(f); return () => { subs.delete(f); }; }, () => ui); }
@@ -67,3 +67,6 @@ export function toast(msg: string, opts: { undo?: boolean } = {}) {
   toastTimer = window.setTimeout(() => { if (ui.toast?.id === id) set({ toast: null }); }, opts.undo ? 6500 : 3500);
 }
 export function hideToast() { set({ toast: null }); }
+
+/** the soldier being looked for: his name lights up in every cell (like search in a spreadsheet) */
+export function setSearch(q: string) { set({ search: q }); }

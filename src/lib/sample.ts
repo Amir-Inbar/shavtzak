@@ -13,7 +13,7 @@ export function sampleState(): State {
   s.settings.title = 'פלוגה ב׳ – מחלקה 2';
   s.board = { start: todayKey(), days: 4 };
   s.people = NAMES.map((name, i): Person => ({
-    id: uid() + i, name, team: i < 8 ? 'כיתה 1' : i < 16 ? 'כיתה 2' : 'כיתה 3',
+    id: uid() + i, name, rank: '', piece: '', team: i < 8 ? 'כיתה 1' : i < 16 ? 'כיתה 2' : 'כיתה 3',
     quals: i % 6 === 0 ? ['נהג'] : i % 7 === 3 ? ['חובש'] : [], unavail: [], note: '',
   }));
   const guard: Post = {

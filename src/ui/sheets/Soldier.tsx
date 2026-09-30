@@ -6,6 +6,7 @@ import type { Person } from '../../lib/types';
 import { DAY, HOUR, dur, fromKey, hm, todayKey, toKey, uid, weekday, whenShort, relDay } from '../../lib/time';
 import { Icon } from '../icons';
 import { PIECES, RANKS, glyphOf, pieceOf, rankOf } from '../../lib/rank';
+import { parsePeople, qualsFor } from '../../lib/pasteList';
 import { setSearch } from '../uiStore';
 import { Field, Sheet } from '../primitives';
 import { closeSheet, confirmDialog, toast } from '../uiStore';
@@ -180,27 +181,37 @@ export function PasteList() {
   const s = useAppState();
   const [txt, setTxt] = useState('');
   const [team, setTeam] = useState('');
-  const have = new Set(s.people.map(p => p.name));
-  const parsed: { name: string; team: string }[] = []; const dup: string[] = [];
-  for (let line of txt.split(/\r?\n/)) {
-    line = line.replace(/^[\s\d.)\-•*]+/, '').trim(); if (!line) continue;
-    // "name, team" · "name - team" · "name<TAB>team"; also comma-separated names on one line
-    const m = line.match(/^(.+?)\s*(?:\t|\s-\s|\s–\s)\s*(.+)$/);
-    const parts = m ? [{ name: m[1].trim(), team: m[2].trim() }] : line.includes(',') && line.split(',').length > 2
-      ? line.split(',').map(n => ({ name: n.trim(), team: team.trim() })).filter(x => x.name)
-      : [{ name: line.split(',')[0].trim(), team: (line.split(',')[1] ?? team).trim() }];
-    for (const x of parts) { if (have.has(x.name) || parsed.some(y => y.name === x.name)) dup.push(x.name); else parsed.push(x); }
-  }
+  const r = parsePeople(txt, s.people, team.trim());
+  const total = r.add.length + r.update.length;
+  // the rank written in the list decides the מפקד / נהג qualifications
+  const withRank = (rank: string, quals: string[]) => (rank ? qualsFor(rank, quals.filter(q => q !== 'מפקד' && q !== 'נהג')) : quals);
+  const noteWith = (old: string, extra: string[]) => [...new Set([...old.split(' · ').filter(Boolean), ...extra])].join(' · ');
   const add = () => {
-    if (!parsed.length) { toast(dup.length ? 'כל השמות כבר ברשימה' : 'לא נמצאו שמות'); return; }
-    commit(st => { st.people.push(...parsed.map(x => ({ id: uid(), name: x.name, rank: '', piece: '' as const, team: x.team, quals: [], unavail: [], note: '' }))); });
-    closeSheet(); toast(`נוספו ${parsed.length} חיילים${dup.length ? ` · ${dup.length} כבר היו ברשימה` : ''}`, { undo: true });
+    if (!total) { toast('לא נמצאו שמות'); return; }
+    commit(st => {
+      for (const { p, from } of r.update) {
+        const x = st.people.find(y => y.id === p.id); if (!x) continue;
+        if (from.team) x.team = from.team;
+        if (from.rank) { x.rank = from.rank; x.piece = ''; }
+        x.quals = withRank(from.rank, x.quals);
+        x.note = noteWith(x.note, [from.name !== x.name ? from.name : '', ...from.notes].filter(Boolean));
+      }
+      st.people.push(...r.add.map(x => ({ id: uid(), name: x.name, rank: x.rank, piece: '' as const, team: x.team, quals: withRank(x.rank, []), unavail: [], note: x.notes.join(' · ') })));
+    });
+    closeSheet();
+    toast([r.add.length ? `נוספו ${r.add.length}` : '', r.update.length ? `עודכנו ${r.update.length}` : ''].filter(Boolean).join(' · '), { undo: true });
   };
   return (
-    <Sheet title="הדבקת רשימת חיילים" sub="שם בכל שורה, או שמות מופרדים בפסיקים. אפשר צוות אחרי מקף: ״כהן - כיתה 1״" footer={<button className="btn btn-primary" onClick={add} disabled={!parsed.length}>{parsed.length ? `הוסף ${parsed.length}` : 'הוסף'}</button>}>
-      <Field label="רשימה"><textarea className="inp tall" value={txt} onChange={e => setTxt(e.target.value)} autoFocus placeholder={'כהן\nלוי - כיתה 1\nמזרחי, פרץ, ביטון, דהן'} /></Field>
+    <Sheet title="הדבקת רשימת חיילים" sub="שם בכל שורה. כותרות ״מפקדים״, ״נהגים״, ״לוחמים״, ״מסופחים״ קובעות תפקיד, ו־״(מחלקה 1)״ קובע מחלקה. מי שכבר בלוח – מתעדכן." footer={<button className="btn btn-primary" onClick={add} disabled={!total}>{total ? 'עדכן רשימה' : 'הוסף'}</button>}>
+      <Field label="רשימה"><textarea className="inp tall" value={txt} onChange={e => setTxt(e.target.value)} autoFocus placeholder={'מפקדים\nסאפר (מחלקה 1)\n\nנהגים\nשנהב (מחלקה 3)\n\nלוחמים\nישי ניסים (מחלקה 1)'} /></Field>
       <Field label="צוות לשורות בלי צוות (לא חובה)"><input className="inp" value={team} onChange={e => setTeam(e.target.value)} /></Field>
-      <p className="hint">{parsed.length || dup.length ? `יתווספו ${parsed.length}${dup.length ? ` · ${dup.length} כבר ברשימה` : ''}${parsed.length ? `: ${parsed.slice(0, 8).map(x => x.name).join(', ')}${parsed.length > 8 ? '…' : ''}` : ''}` : 'אפשר להעתיק עמודה שלמה מהגיליון ולהדביק כאן.'}</p>
+      {total ? (
+        <div className="card">
+          {r.add.length ? <p><b>יתווספו {r.add.length}:</b> {r.add.map(x => `${x.name}${x.rank ? ` (${x.rank})` : ''}`).join(', ')}</p> : null}
+          {r.update.length ? <p style={{ marginTop: 6 }}><b>יעודכנו {r.update.length}:</b> {r.update.map(u => (u.from.name !== u.p.name ? `${u.p.name} ← ${u.from.name}` : u.p.name)).join(', ')}</p> : null}
+          {r.dup.length ? <p className="hint">מופיעים פעמיים ברשימה: {r.dup.join(', ')}</p> : null}
+        </div>
+      ) : <p className="hint">אפשר להעתיק עמודה שלמה מהגיליון ולהדביק כאן.</p>}
     </Sheet>
   );
 }

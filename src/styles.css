@@ -436,3 +436,10 @@ table.ctable { table-layout: auto; min-width: 920px; }
 .chip.hit { background: #fff; color: var(--ink); border-color: #34A853; box-shadow: 0 0 0 2px #34A853; }
 .banner.remote { background: #E3F4E8; border: 1px solid #9ED3AE; }
 .banner.remote .inp.sm { max-width: 190px; font-family: ui-monospace, Menlo, monospace; letter-spacing: .04em; }
+
+/* listening hours inside Carmel */
+.chip-pre { font-size: 11.5px; font-weight: 700; color: var(--accent); padding-inline-end: 2px; }
+.listen-btn { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; border: 0; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 8px; }
+.listen-list { display: flex; flex-direction: column; gap: 8px; }
+.listen-row { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 10px; }
+.listen-row b { font-size: 17px; }

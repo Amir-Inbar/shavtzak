@@ -1,7 +1,7 @@
 // Renders the board as clean PNG tables for WhatsApp, plus a plain-text version.
 import type { Slot, State } from './types';
 import { boardDays, daySlots, extrasOn, peopleInRole, postColor, roleOf, slotsOfPerson } from './slots';
-import { combinedRows } from './combined';
+import { childSlots, combinedRows, tablePosts } from './combined';
 import { glyphOf } from './rank';
 import { dm, fromKey, hm, hours, weekday, ltr, addDaysKey, type DateKey } from './time';
 
@@ -157,7 +157,7 @@ function tableGroups(cx: Ctx, s: State, o: ShareOptions, X0: number, X1: number)
 
 /** everything in one table, like the paper roster: day | hours | post groups with a column per role */
 function combinedBlocks(cx: Ctx, s: State, o: ShareOptions): { blocks: Block[]; W: number } {
-  const posts = s.posts.filter(p => o.postIds.includes(p.id));
+  const posts = tablePosts(s.posts.filter(p => o.postIds.includes(p.id)));
   const F_NAMES = `500 30px ${FUI}`;
   const nameOf = (id: string) => s.people.find(p => p.id === id)?.name ?? '';
   const colDay = 160, colTime = 236;
@@ -167,6 +167,14 @@ function combinedBlocks(cx: Ctx, s: State, o: ShareOptions): { blocks: Block[]; 
   const rowsByDay = o.days.map(d => ({ d, rows: combinedRows(s, d, posts) }));
   cx.font = F_NAMES; cx.direction = 'rtl';
   const namesIn = (sl: Slot, roleId: string | null) => (roleId ? peopleInRole(sl, sl.roles.find(r => r.id === roleId)!) : sl.assigned).map(nameOf).filter(Boolean);
+  const listenIn = (sl: Slot, roleId: string | null) => childSlots(s, sl).filter(k => !k.post.within?.roleId || k.post.within.roleId === roleId);
+  const cellLines = (sl: Slot, roleId: string | null, width: number): string[] => {
+    const kids = listenIn(sl, roleId);
+    if (!kids.length) { const ns = namesIn(sl, roleId); return ns.length ? wrap(cx, ns, ', ', width, F_NAMES) : ['—']; }
+    const heard = new Set(kids.flatMap(k => k.slot.assigned));
+    const rest = (roleId ? peopleInRole(sl, sl.roles.find(r => r.id === roleId)!) : sl.assigned).filter(id => !heard.has(id)).map(nameOf).filter(Boolean);
+    return [...kids.map(k => `${ltr(hm(k.slot.start))} - ${k.slot.assigned.map(nameOf).join(', ') || '—'}`), ...(rest.length ? wrap(cx, rest, ', ', width, F_NAMES) : [])];
+  };
   for (const c of cols) {
     const pi = posts.indexOf(c.post);
     const single = c.roleId ? (c.post.roles.find(r => r.id === c.roleId)!.count <= 1) : false;
@@ -174,7 +182,10 @@ function combinedBlocks(cx: Ctx, s: State, o: ShareOptions): { blocks: Block[]; 
     for (const { rows } of rowsByDay) for (const row of rows) {
       const cell = row.cells[pi]; if (cell.kind !== 'slot') continue;
       const ns = namesIn(cell.slot, c.roleId);
-      widest = Math.max(widest, single ? Math.max(0, ...ns.map(n => cx.measureText(n).width)) : cx.measureText(ns.join(', ')).width);
+      const kids = listenIn(cell.slot, c.roleId);
+      const w = kids.length ? Math.max(...kids.map(k => cx.measureText(`${hm(k.slot.start)} - ${k.slot.assigned.map(nameOf).join(', ')}`).width))
+        : single ? Math.max(0, ...ns.map(n => cx.measureText(n).width)) : cx.measureText(ns.join(', ')).width;
+      widest = Math.max(widest, w);
     }
     c.w = single ? Math.min(300, Math.max(130, widest + 40)) : Math.min(520, Math.max(200, widest + 40));
   }
@@ -206,8 +217,7 @@ function combinedBlocks(cx: Ctx, s: State, o: ShareOptions): { blocks: Block[]; 
       const cell = row.cells[posts.indexOf(c.post)];
       if (cell.kind === 'cont') return ['—'];
       if (cell.kind === 'none') return [''];
-      const ns = namesIn(cell.slot, c.roleId);
-      return ns.length ? wrap(cx, ns, ', ', c.w - 30, F_NAMES) : ['—'];
+      return cellLines(cell.slot, c.roleId, c.w - 30);
     }));
     const rh = lines.map(ls => 24 + Math.max(1, ...ls.map(l => l.length)) * 42 + 4);
     const h = Math.max(96, rh.reduce((t, x) => t + x, 0));

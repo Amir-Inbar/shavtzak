@@ -33,3 +33,13 @@ export function combinedRows(s: State, date: DateKey, posts: Post[]): CRow[] {
 
 /** columns a post takes in the combined table: one per role, or a single names column */
 export const postCols = (p: Post) => (p.roles.length > 1 ? p.roles.length : 1);
+
+/** posts that get their own columns: a post drawn from another post's team (the listener) is shown inside it instead */
+export const tablePosts = (posts: Post[]) => posts.filter(p => !p.within || !posts.some(x => x.id === p.within!.postId));
+
+/** listening-type slots that happen inside a parent shift (e.g. the listener hours during a Carmel day), in time order */
+export function childSlots(s: State, parent: Slot): { post: Post; slot: Slot }[] {
+  return s.posts.filter(p => p.within?.postId === parent.postId)
+    .flatMap(p => daySlots(s, parent.date, p).filter(x => x.start >= parent.start && x.end <= parent.end).map(slot => ({ post: p, slot })))
+    .sort((a, b) => a.slot.start - b.slot.start);
+}

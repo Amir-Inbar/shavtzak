@@ -7,7 +7,8 @@ import type { Evaluation, Person, Post, Role, Slot, State } from '../lib/types';
 import { dm, durShortH, fromKey, hm, relDay, todayKey, weekday, addDaysKey } from '../lib/time';
 import { Icon } from './icons';
 import { useDrag } from './Dnd';
-import { combinedRows, postCols } from '../lib/combined';
+import { childSlots, combinedRows, postCols, tablePosts } from '../lib/combined';
+import { ListenSheet } from './sheets/Listen';
 import { glyphOf } from '../lib/rank';
 import { openSheet } from './uiStore';
 import { Picker } from './sheets/Picker';
@@ -144,7 +145,7 @@ function RolesCell({ s, sl, search }: { s: State; sl: Slot; search: string }) {
     </td>
   );
 }
-function RoleBox({ sl, rf, ev, search }: { sl: Slot; rf: RoleFill; ev: Record<string, Evaluation>; search: string }) {
+function RoleBox({ sl, rf, ev, search, listen = [] }: { sl: Slot; rf: RoleFill; ev: Record<string, Evaluation>; search: string; listen?: { post: Post; slot: Slot }[] }) {
   const drag = useDrag();
   const { setNodeRef, isOver } = useDroppable({ id: `${sl.key}@${rf.role.id}` });
   let v = drag?.verdict.get(sl.key);
@@ -155,15 +156,24 @@ function RoleBox({ sl, rf, ev, search }: { sl: Slot; rf: RoleFill; ev: Record<st
     <div ref={setNodeRef} className={cls} onClick={e => { if ((e.target as HTMLElement).closest('.chip')) return; e.stopPropagation(); openPicker(sl.key, rf.role.id); }}>
       <span className="rlabel">{rf.role.name}</span>
       <div className="names">
-        {rf.people.map(p => <Chip key={p.id} sl={sl} p={p} e={ev[p.id]} search={search} wrong={rf.wrongQual.includes(p) ? rf.role.qual : ''} />)}
+        {(listen.length ? [...rf.people].sort((a, b) => firstHour(listen, a.id) - firstHour(listen, b.id)) : rf.people).map(p => (
+          <Chip key={p.id} sl={sl} p={p} e={ev[p.id]} search={search} wrong={rf.wrongQual.includes(p) ? rf.role.qual : ''}
+            pre={listen.filter(k => k.slot.assigned.includes(p.id)).map(k => hm(k.slot.start)).join('+')} />
+        ))}
         {rf.missing ? <span className="slot-empty"><Icon n="plus" size={14} />{rf.missing === 1 ? 'פנוי' : `${rf.missing} פנויים`}</span> : null}
       </div>
+      {listen.length ? (
+        <button className="listen-btn" onClick={e => { e.stopPropagation(); openSheet(() => <ListenSheet parentKey={sl.key} />); }}>
+          <Icon n="clock" size={14} />{listen[0].post.name} · {listen.filter(k => k.slot.assigned.length).length}/{listen.length}
+        </button>
+      ) : null}
       {v && v.st !== 'src' ? <div className={`drop-tag ${v.st}`}>{v.text}</div> : null}
     </div>
   );
 }
+const firstHour = (listen: { slot: Slot }[], pid: string) => { const k = listen.find(x => x.slot.assigned.includes(pid)); return k ? k.slot.start : Infinity; };
 
-function Chip({ sl, p, e, search, wrong = '' }: { sl: Slot; p: Person; e: Evaluation; search: string; wrong?: string }) {
+function Chip({ sl, p, e, search, wrong = '', pre = '' }: { sl: Slot; p: Person; e: Evaluation; search: string; wrong?: string; pre?: string }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `${sl.key}#${p.id}`, data: { key: sl.key, pid: p.id } });
   const q = search.trim();
   const hit = q && p.name.includes(q);
@@ -173,7 +183,7 @@ function Chip({ sl, p, e, search, wrong = '' }: { sl: Slot; p: Person; e: Evalua
     <button ref={setNodeRef} {...listeners} {...attributes} className={cls}
       onClick={() => openSheet(() => <ChipMenu slotKey={sl.key} pid={p.id} />)}
       title={[...e.reasons, wrong ? `אינו ${wrong}` : ''].filter(Boolean).join(' · ') || undefined}>
-      <span className="pc">{glyphOf(p)}</span>{p.name}
+      {pre ? <span className="chip-pre tm">{pre}</span> : null}<span className="pc">{glyphOf(p)}</span>{p.name}
       {wrong && e.status === 'ok' ? <span className="cb">!</span> : null}
       {e.status === 'warn' && e.shortest != null ? <span className="cb"><Icon n="moon" size={11} />{durShortH(e.shortest)}</span> : null}
       {e.status === 'block' ? <span className="cb">!</span> : null}
@@ -208,7 +218,7 @@ function ExtrasTable({ s, slots, search, now }: { s: State; slots: Slot[]; searc
 /** all posts in one table, like the paper roster: day | hours | patrol (מפקד | נהג | חיילים) | כרמל | תורן */
 function CombinedTable({ s, days, search, now }: { s: State; days: string[]; search: string; now: number }) {
   const today = todayKey();
-  const posts = s.posts;
+  const posts = tablePosts(s.posts);
   return (
     <section className="ptable combined" aria-label="לוח שיבוץ">
       <div className="ctable-wrap">
@@ -260,9 +270,10 @@ function CombinedTable({ s, days, search, now }: { s: State; days: string[]; sea
                         const sl = cell.slot;
                         if (sl.roles.length > 1) {
                           const inf = slotInfo(s, sl);
+                          const kids = childSlots(s, sl);
                           return inf.roles.map((rf, i) => (
                             <td key={p.id + rf.role.id} className={`c-rolecell${i === 0 ? ' first' : ''}`}>
-                              <RoleBox sl={sl} rf={rf} ev={inf.ev} search={search} />
+                              <RoleBox sl={sl} rf={rf} ev={inf.ev} search={search} listen={kids.filter(k => !k.post.within?.roleId || k.post.within.roleId === rf.role.id)} />
                             </td>
                           ));
                         }

@@ -71,3 +71,16 @@ npm run dev
 האתר יכול להחזיק לוח מוכן, **מוצפן** בקוד שרק למנהל יש (AES-GCM, מפתח מ־PBKDF2). במאגר ובאתר נשמר רק הקובץ המוצפן `public/board.enc.json` – בלי שמות גלויים.
 כשפותחים את האתר ויש בו לוח חדש יותר ממה שבמכשיר, מופיע פס ״יש לוח מעודכן באתר״. בפעם הראשונה מזינים את הקוד (הוא נשמר במכשיר), ובעדכונים הבאים מספיקה לחיצה על ״טען״.
 
+## עדכון הלוח דרך Claude (MCP)
+
+בתיקייה `mcp/` יש שרת MCP שמאפשר ל־Claude לקרוא ולעדכן את הלוח האמיתי ולפרסם אותו לאתר (מוצפן).
+הלוח עצמו נשמר רק בקובץ המקומי `data/board.json`, שלא עולה ל־GitHub.
+
+```bash
+npm run mcp:build
+claude mcp add shavtzak --scope user -- node "$PWD/mcp/dist/server.mjs"
+```
+
+כלים עיקריים: `shavtzak_board` (הטבלה), `shavtzak_people`, `shavtzak_update_people` (רשימה בפורמט מפקדים/נהגים/לוחמים),
+`shavtzak_assign_many` (הזנת טבלה שלמה), `shavtzak_check` (כללים), `shavtzak_publish` (פרסום לאתר).
+

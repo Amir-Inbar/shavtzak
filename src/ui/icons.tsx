@@ -29,6 +29,7 @@ const P: Record<string, JSX.Element> = {
   image: <><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><circle cx="9" cy="10" r="1.8" /><path d="M20.5 16l-5-5-9 8.5" /></>,
   alert: <><path d="M12 4l9 16H3z" /><path d="M12 10v4M12 17.2v.1" /></>,
   up: <path d="M6 15l6-6 6 6" />,
+  clock: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>,
   down: <path d="M6 9l6 6 6-6" />,
 };
 

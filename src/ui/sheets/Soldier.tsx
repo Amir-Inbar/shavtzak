@@ -5,7 +5,8 @@ import { boardDays, personNow, postColor, restBefore, slotsOfPerson } from '../.
 import type { Person } from '../../lib/types';
 import { DAY, HOUR, dur, fromKey, hm, todayKey, toKey, uid, weekday, whenShort, relDay } from '../../lib/time';
 import { Icon } from '../icons';
-import { PIECES, RANKS, glyphOf, pieceOf, rankOf } from '../../lib/rank';
+import { RANKS, rankOf } from '../../lib/rank';
+import { RankIcon } from '../RankIcon';
 import { parsePeople, qualsFor } from '../../lib/pasteList';
 import { setSearch } from '../uiStore';
 import { Field, Sheet } from '../primitives';
@@ -115,7 +116,7 @@ export function SoldierSheet({ id }: { id: string | null }) {
   const sub = existing ? [existing.team, ...existing.quals].filter(Boolean).join(' · ') : '';
   return (
     <Sheet
-      title={existing ? <><span className="pc big">{glyphOf(existing)}</span> {existing.name}</> : 'חייל חדש'}
+      title={existing ? <span className="title-rk"><RankIcon p={existing} size={24} />{existing.name}</span> : 'חייל חדש'}
       sub={existing ? [rankOf(existing), sub].filter(Boolean).join(' · ') : undefined}
       footer={edit
         ? <><button className="btn btn-primary" onClick={save}>שמור</button>{existing ? <button className="btn" onClick={() => { setD(structuredClone(existing)); setEdit(false); }}>ביטול</button> : null}{existing ? <button className="btn danger-t" onClick={remove}><Icon n="trash" /> מחק</button> : null}</>
@@ -131,12 +132,8 @@ export function SoldierSheet({ id }: { id: string | null }) {
           <datalist id="dl-teams">{teams.map(t => <option key={t} value={t} />)}</datalist>
           <div className="fld"><span className="fld-l">תפקיד</span>
             <div className="row">
-              {RANKS.map(r => <button key={r.name} type="button" className={`pill${rankOf(d) === r.name ? ' on' : ''}`} onClick={() => setD({ ...d, rank: r.name, piece: '', quals: r.name === 'מפקד' && !d.quals.includes('מפקד') ? [...d.quals, 'מפקד'] : r.name === 'נהג' && !d.quals.includes('נהג') ? [...d.quals, 'נהג'] : d.quals })}>{r.name}</button>)}
-            </div>
-          </div>
-          <div className="fld"><span className="fld-l">כלי שחמט</span>
-            <div className="row">
-              {PIECES.map(x => <button key={x.id} type="button" className={`pill piece-pill${pieceOf(d) === x.id ? ' on' : ''}`} onClick={() => setD({ ...d, piece: x.id })} title={x.name}><span className="pc">{x.glyph}{'\uFE0E'}</span>{x.name}</button>)}
+              {RANKS.map(r => <button key={r.name} type="button" className={`pill${rankOf(d) === r.name ? ' on' : ''}`} onClick={() => setD({ ...d, rank: r.name, piece: '', quals: r.name === 'מפקד' && !d.quals.includes('מפקד') ? [...d.quals, 'מפקד'] : r.name === 'נהג' && !d.quals.includes('נהג') ? [...d.quals, 'נהג'] : d.quals })}>
+                <RankIcon kind={r.kind} size={16} />{r.name}</button>)}
             </div>
           </div>
           <div className="fld"><span className="fld-l">כשירויות</span>

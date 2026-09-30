@@ -2,7 +2,8 @@
 import type { Slot, State } from './types';
 import { boardDays, daySlots, extrasOn, peopleInRole, postColor, roleOf, slotsOfPerson } from './slots';
 import { childSlots, combinedRows, tablePosts } from './combined';
-import { glyphOf } from './rank';
+import { RANK_COLORS, RANK_PATHS, rankKind } from './rank';
+import type { Person } from './types';
 import { dm, fromKey, hm, hours, weekday, ltr, addDaysKey, type DateKey } from './time';
 
 export type ShareMode = 'combined' | 'table' | 'people';
@@ -15,7 +16,7 @@ const P = 40;
 
 async function fonts() {
   if (!document.fonts) return;
-  const want = ['30px "Noto Sans Symbols 2"', '800 56px Rubik', '700 34px Rubik', '600 30px Rubik', '500 30px "IBM Plex Sans Hebrew"', '600 30px "IBM Plex Sans Hebrew"'];
+  const want = ['800 56px Rubik', '700 34px Rubik', '600 30px Rubik', '500 30px "IBM Plex Sans Hebrew"', '600 30px "IBM Plex Sans Hebrew"'];
   try { await Promise.race([Promise.all(want.map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 1800))]); } catch { /* fall back */ }
 }
 type Ctx = CanvasRenderingContext2D;
@@ -34,6 +35,15 @@ function wrap(cx: Ctx, words: string[], sep: string, max: number, font: string):
   return out.length ? out : [''];
 }
 const shiftLabel = (sl: Slot) => sl.allDay ? '' : `${hm(sl.start)}–${hm(sl.end)}`;
+
+/** the role icon (helmet / steering wheel / chevrons), same paths as on screen */
+function drawRank(cx: Ctx, p: Person, x: number, y: number, size: number) {
+  const k = rankKind(p); const solid = k === 'officer' || k === 'captain';
+  cx.save(); cx.translate(x, y); cx.scale(size / 24, size / 24);
+  cx.strokeStyle = cx.fillStyle = RANK_COLORS[k]; cx.lineWidth = 2.1; cx.lineCap = 'round'; cx.lineJoin = 'round';
+  for (const d of RANK_PATHS[k]) { const path = new Path2D(d); if (solid) cx.fill(path); else cx.stroke(path); }
+  cx.restore();
+}
 
 /* ---------- blocks: horizontal strips drawn top to bottom ---------- */
 interface Block { h: number; draw: (cx: Ctx, y: number) => void }
@@ -278,7 +288,8 @@ function peopleBlocks(_cx: Ctx, s: State, o: ShareOptions, W: number): Block[] {
     blocks.push({
       h, draw(cx, y) {
         if (i % 2) { cx.fillStyle = C.zebra; cx.fillRect(X0, y, X1 - X0, h); }
-        text(cx, `${glyphOf(p)} ${p.name}`, X1 - 16, y + 22 + 26, `700 30px "Noto Sans Symbols 2",${FUI}`, C.ink);
+        drawRank(cx, p, X1 - 16 - 30, y + 22 + 2, 30);
+        text(cx, p.name, X1 - 16 - 40, y + 22 + 26, `700 30px ${FUI}`, C.ink);
         per.forEach((list, di) => {
           const xm = X1 - colName - colW * di - colW / 2;
           list.forEach((sl, j) => {

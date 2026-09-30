@@ -9,7 +9,7 @@ import { Icon } from './icons';
 import { useDrag } from './Dnd';
 import { childSlots, combinedRows, postCols, tablePosts } from '../lib/combined';
 import { ListenSheet } from './sheets/Listen';
-import { glyphOf } from '../lib/rank';
+import { RankIcon } from './RankIcon';
 import { openSheet } from './uiStore';
 import { Picker } from './sheets/Picker';
 import { ChipMenu } from './sheets/ChipMenu';
@@ -183,7 +183,7 @@ function Chip({ sl, p, e, search, wrong = '', pre = '' }: { sl: Slot; p: Person;
     <button ref={setNodeRef} {...listeners} {...attributes} className={cls}
       onClick={() => openSheet(() => <ChipMenu slotKey={sl.key} pid={p.id} />)}
       title={[...e.reasons, wrong ? `אינו ${wrong}` : ''].filter(Boolean).join(' · ') || undefined}>
-      {pre ? <span className="chip-pre tm">{pre}</span> : null}<span className="pc">{glyphOf(p)}</span>{p.name}
+      {pre ? <span className="chip-pre tm">{pre}</span> : null}<RankIcon p={p} size={14} />{p.name}
       {wrong && e.status === 'ok' ? <span className="cb">!</span> : null}
       {e.status === 'warn' && e.shortest != null ? <span className="cb"><Icon n="moon" size={11} />{durShortH(e.shortest)}</span> : null}
       {e.status === 'block' ? <span className="cb">!</span> : null}

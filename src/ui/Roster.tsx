@@ -9,7 +9,8 @@ import { Icon } from './icons';
 import { openSheet } from './uiStore';
 import { PasteList, SoldierSheet } from './sheets/Soldier';
 import type { DragData } from './Dnd';
-import { glyphOf, rankOf } from '../lib/rank';
+import { rankOf } from '../lib/rank';
+import { RankIcon } from './RankIcon';
 
 export function Roster({ tray, active, onPick }: { tray?: boolean; active: string; onPick: (name: string) => void }) {
   const s = useAppState();
@@ -64,7 +65,7 @@ function Item({ p, n, off, on, onPick }: { p: Person; n: number; off?: string; o
     <button ref={setNodeRef} {...listeners} {...attributes}
       className={`ro-item${on ? ' on' : ''}${isDragging ? ' dragging' : ''}${off ? ' off' : ''}`}
       onClick={() => onPick(on ? '' : p.name)} title={off ? `לא זמין: ${off}` : 'גררו למשמרת · הקשה מסמנת את המשמרות שלו'}>
-      <span className="pc">{glyphOf(p)}</span>
+      <RankIcon p={p} size={18} />
       <span className="grow">{p.name}<small className="ro-rank">{rankOf(p)}</small></span>
       {off ? <span className="ro-off">{off || 'לא זמין'}</span> : null}
       <span className={`ro-n${n ? '' : ' zero'}`}>{n}</span>
